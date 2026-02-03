@@ -48,5 +48,8 @@ No external UI frameworks are used to preserve design flexibility and control.
 
 ---
 
+## License
+
+© 2026 Team Genesis, VIT Chennai. All rights reserved.
 
 
