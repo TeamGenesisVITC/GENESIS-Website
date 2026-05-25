@@ -1,0 +1,23 @@
+{
+  "files": {
+    "main.css": "/static/css/main.c45ff334.css",
+    "main.js": "/static/js/main.b2531abb.js",
+    "static/media/mechanical-and-design-bg.png": "/static/media/mechanical-and-design-bg.d99e78c6b630daf24834.png",
+    "static/media/electrical-bg.png": "/static/media/electrical-bg.95d1ac9c9bf53324fdd4.png",
+    "static/media/leads-bg.png": "/static/media/leads-bg.41947e10d11822a2d6dc.png",
+    "static/media/ai-bg.png": "/static/media/ai-bg.f9f8b8d449e20bb78ea3.png",
+    "static/media/hero-background.png": "/static/media/hero-background.e2b7a13dd73b2090d5ec.png",
+    "static/media/electrical.png": "/static/media/electrical.fa88d584f40102b1b1d1.png",
+    "static/media/mechanical.png": "/static/media/mechanical.499e9b16af647c208f05.png",
+    "static/media/leads.png": "/static/media/leads.2039a93e81ebe2b71ba9.png",
+    "static/media/software.png": "/static/media/software.0c2061061bd1e3e2dd97.png",
+    "static/media/robot.png": "/static/media/robot.7c00e29ba272b368ad90.png",
+    "index.html": "/index.html",
+    "main.c45ff334.css.map": "/static/css/main.c45ff334.css.map",
+    "main.b2531abb.js.map": "/static/js/main.b2531abb.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.c45ff334.css",
+    "static/js/main.b2531abb.js"
+  ]
+}

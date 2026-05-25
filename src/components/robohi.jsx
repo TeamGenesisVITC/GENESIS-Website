@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './robohi.css';
 
@@ -9,19 +9,6 @@ import leadsImg from '../assets/images/leads.png';
 
 function Robohi() {
   const navigate = useNavigate();
-  const [scrollProgress, setScrollProgress] = useState(0);
-  
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = scrollTop / docHeight;
-      setScrollProgress(progress);
-    };
-    
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   return (
     <div className="robo-hi">
