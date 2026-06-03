@@ -3,6 +3,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LandingHero from './components/LandingHero';
 import Robohi from './components/robohi';
 import IntroSequence from './components/IntroSequence';
+import Leads from './pages/Leads';
+import Electrical from './pages/Electrical';
+import Mechanical from './pages/Mechanical';
+import SoftwareAI from './pages/SoftwareAI';
 
 function App() {
   const [introComplete, setIntroComplete] = useState(false);
@@ -24,7 +28,10 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingHero />} />
             <Route path="/robo-hi" element={<Robohi />} />
-            {/* Add team routes later when you create the Team page */}
+            <Route path="/team/leads" element={<Leads />} />
+            <Route path="/team/electrical" element={<Electrical />} />
+            <Route path="/team/mechanical" element={<Mechanical />} />
+            <Route path="/team/software" element={<SoftwareAI />} />
           </Routes>
         </BrowserRouter>
       </div>

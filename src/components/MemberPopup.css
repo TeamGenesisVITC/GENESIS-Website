@@ -149,3 +149,70 @@
     }
   }
 }
+
+/* ── Mobile (max-width: 768px) ── */
+@media (max-width: 768px) {
+  .member-popup-inline {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    width: 92%;
+    max-width: 360px;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    z-index: 10000;
+    padding: 1.25rem;
+  }
+
+  /* Override both side variants to stay centred */
+  .member-popup-inline.left,
+  .member-popup-inline.right {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+  }
+
+  .popup-close {
+    position: sticky;
+    top: 0;
+    float: right;
+    margin-bottom: 0.5rem;
+    /* Ensure close button is always reachable */
+    z-index: 1;
+  }
+
+  .popup-name {
+    font-size: 1.1rem;
+    padding-right: 36px; /* space for close button */
+  }
+
+  .popup-role {
+    font-size: 0.7rem;
+  }
+
+  .popup-quote {
+    font-size: 0.85rem;
+    padding: 0.75rem;
+  }
+}
+
+/* ── Small mobile (max-width: 480px) ── */
+@media (max-width: 480px) {
+  .member-popup-inline {
+    width: 95%;
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
+  .popup-name {
+    font-size: 1rem;
+  }
+
+  .popup-quote {
+    font-size: 0.8rem;
+  }
+}

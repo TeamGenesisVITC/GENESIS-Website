@@ -470,3 +470,148 @@
     padding: 30px 20px;
   }
 }
+
+/* ── Mobile (max-width: 768px) ── */
+@media (max-width: 768px) {
+  .landing-hero {
+    min-height: 100svh;
+  }
+
+  .hero-content {
+    padding: 24px 16px;
+    gap: 32px;
+  }
+
+  .text-section {
+    gap: 16px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .main-title {
+    gap: 8px;
+  }
+
+  .welcome-text {
+    font-size: 1rem;
+    letter-spacing: 0.2em;
+  }
+
+  .team-name {
+    font-size: 3rem;
+    letter-spacing: 0.12em;
+  }
+
+  .tagline {
+    font-size: 1.1rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .humanoids-text {
+    font-size: 2.2rem;
+  }
+
+  .robot-section {
+    width: 100%;
+  }
+
+  .robot-image {
+    max-width: 280px;
+    width: 100%;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .hero-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 14px 24px;
+    font-size: 0.9rem;
+  }
+
+  .section {
+    padding: 48px 16px;
+  }
+
+  .section-title {
+    font-size: 1.8rem;
+  }
+
+  .section-description {
+    font-size: 0.95rem;
+    margin-bottom: 36px;
+  }
+
+  .sponsors-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .sponsor-card {
+    padding: 24px 16px;
+  }
+
+  .contact-info {
+    padding: 24px 16px;
+  }
+
+  .contact-info h3 {
+    font-size: 1.4rem;
+  }
+
+  .contact-link {
+    font-size: 0.85rem;
+    padding: 12px 20px;
+    word-break: break-all;
+  }
+}
+
+/* ── Small mobile (max-width: 480px) ── */
+@media (max-width: 480px) {
+  .hero-content {
+    padding: 20px 12px;
+    gap: 24px;
+  }
+
+  .welcome-text {
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+  }
+
+  .team-name {
+    font-size: 2.4rem;
+    letter-spacing: 0.08em;
+  }
+
+  .tagline {
+    font-size: 1rem;
+  }
+
+  .humanoids-text {
+    font-size: 1.9rem;
+  }
+
+  .robot-image {
+    max-width: 220px;
+  }
+
+  .hero-btn {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+
+  .section {
+    padding: 36px 12px;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+}

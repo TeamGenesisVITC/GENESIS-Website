@@ -272,7 +272,7 @@ export default function IntroSequence({ onComplete }) {
       {/* Step 2 — Spline wrapped in a ref'd container div */}
       <div
         ref={splineContainerRef}
-        style={{ position: 'absolute', inset: 0, zIndex: 2 }}
+        style={{ position: 'absolute', inset: 0, zIndex: 2, maxWidth: '100vw', overflow: 'hidden' }}
       >
         <Spline
           scene="https://prod.spline.design/cwEukIWPXY1Mqjj8/scene.splinecode"
@@ -305,7 +305,7 @@ export default function IntroSequence({ onComplete }) {
             data-index={i}
             style={{
               color: '#ffffff',
-              fontSize: 'clamp(48px, 10vw, 120px)',
+              fontSize: 'clamp(32px, 8vw, 120px)',
               fontFamily: '"Orbitron", monospace',
               fontWeight: 900,
               letterSpacing: '0.2em',
