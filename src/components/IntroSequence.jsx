@@ -148,7 +148,9 @@ export default function IntroSequence({ onComplete }) {
       containerRef.current.style.transition = 'transform 0.5s ease-in';
       containerRef.current.style.transform = 'translateX(100vw)';
       setTimeout(() => onComplete?.(), 500);
+      return;
     }
+    onComplete?.();
   };
 
   useEffect(() => {
@@ -175,6 +177,8 @@ export default function IntroSequence({ onComplete }) {
     // Dispatches both MouseEvent and PointerEvent to the canvas element
     // (Spline uses pointer events internally) and falls back to window.
     setTimeout(() => {
+      if (done.current) return;
+
       const container = genesisRef.current;
       if (!container) return;
       const spans = container.querySelectorAll('span');
@@ -195,19 +199,15 @@ export default function IntroSequence({ onComplete }) {
         y: positions[positions.length - 1].y,
       });
 
-      // Step 1 diagnostic — confirm positions are real
-      console.log('Letter positions:', positions);
-
       positions.forEach((pos, i) => {
         setTimeout(() => {
-          // Step 1 diagnostic — confirm each dispatch fires
-          console.log('Dispatching mousemove to:', pos.x, pos.y, 'at delay', i * 500);
+          if (done.current) return;
 
-          // Step 2 — target the canvas directly; fall back to window
+          // Target the canvas directly; fall back to window
           const canvas = splineContainerRef.current?.querySelector('canvas');
           const target = canvas || window;
 
-          // Step 3 — dispatch both MouseEvent and PointerEvent
+          // Dispatch MouseEvent
           target.dispatchEvent(new MouseEvent('mousemove', {
             clientX: pos.x,
             clientY: pos.y,
@@ -216,14 +216,19 @@ export default function IntroSequence({ onComplete }) {
             view: window,
           }));
 
-          target.dispatchEvent(new PointerEvent('pointermove', {
-            clientX: pos.x,
-            clientY: pos.y,
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            isPrimary: true,
-          }));
+          // Dispatch PointerEvent — wrapped in try-catch for safety
+          try {
+            target.dispatchEvent(new PointerEvent('pointermove', {
+              clientX: pos.x,
+              clientY: pos.y,
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              isPrimary: true,
+            }));
+          } catch (e) {
+            // PointerEvent not supported
+          }
 
           // Also fire on window as a fallback in case Spline listens there
           if (target !== window) {
@@ -235,7 +240,7 @@ export default function IntroSequence({ onComplete }) {
               view: window,
             }));
           }
-        }, i * 500); // Step 4 — 500ms between letters
+        }, i * 500);
       });
     }, 1500);
 
@@ -247,14 +252,14 @@ export default function IntroSequence({ onComplete }) {
 
   return (
     <div
-      ref={el => { if (el) console.log('INTRO DIV MOUNTED'); containerRef.current = el; }}
+      ref={el => { containerRef.current = el; }}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
         background: '#05010f',
         overflow: 'hidden',
-        cursor: 'none',
+        cursor: 'default',
       }}
     >
       {/* Circuit board background */}
@@ -320,20 +325,27 @@ export default function IntroSequence({ onComplete }) {
         ))}
       </div>
 
-      {/* ESC hint */}
-      <div style={{
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        color: '#fff',
-        fontSize: 12,
-        opacity: 0.4,
-        fontFamily: 'monospace',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}>
-        ESC to skip
-      </div>
+      {/* Skip button — tappable on mobile, keyboard accessible */}
+      <button
+        onClick={finish}
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 24,
+          background: 'transparent',
+          border: '1px solid rgba(255,255,255,0.3)',
+          color: '#fff',
+          fontSize: 12,
+          opacity: 0.5,
+          fontFamily: 'monospace',
+          zIndex: 20,
+          padding: '6px 14px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+        }}
+      >
+        Skip
+      </button>
     </div>
   );
 }
