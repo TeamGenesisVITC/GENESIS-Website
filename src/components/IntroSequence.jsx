@@ -154,98 +154,76 @@ export default function IntroSequence({ onComplete }) {
   };
 
   useEffect(() => {
-    // 5-second auto-finish timer
-    const timer = setTimeout(finish, 5000);
+    const timeoutIds = [];
 
-    // ESC to skip
-    const onKey = (e) => { if (e.key === 'Escape') finish(); };
-    window.addEventListener('keydown', onKey);
-
-    // GENESIS letters stagger in after 0.5s
-    setTimeout(() => {
+    // Letter reveal — stagger each span in after 0.5s
+    const t1 = setTimeout(() => {
       const spans = genesisRef.current?.querySelectorAll('span');
       if (!spans) return;
       spans.forEach((span, i) => {
-        setTimeout(() => {
+        const t = setTimeout(() => {
           span.style.opacity = '1';
         }, i * 120);
+        timeoutIds.push(t);
       });
     }, 500);
+    timeoutIds.push(t1);
 
-    // Automated cursor sweep across GENESIS letters.
-    // Starts at 1500ms — well after all letters have appeared.
-    // Dispatches both MouseEvent and PointerEvent to the canvas element
-    // (Spline uses pointer events internally) and falls back to window.
-    setTimeout(() => {
+    // Cursor sweep — starts at 1500ms, after all letters have appeared
+    const t2 = setTimeout(() => {
       if (done.current) return;
-
       const container = genesisRef.current;
       if (!container) return;
       const spans = container.querySelectorAll('span');
       if (!spans.length) return;
 
-      // Capture centre point of each letter
       const positions = Array.from(spans).map(span => {
         const rect = span.getBoundingClientRect();
-        return {
-          x: rect.left + rect.width / 2,
-          y: rect.top  + rect.height / 2,
-        };
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
       });
-
-      // One final position slightly right of the last letter
       positions.push({
         x: positions[positions.length - 1].x + 80,
         y: positions[positions.length - 1].y,
       });
 
       positions.forEach((pos, i) => {
-        setTimeout(() => {
+        const t = setTimeout(() => {
           if (done.current) return;
-
-          // Target the canvas directly; fall back to window
           const canvas = splineContainerRef.current?.querySelector('canvas');
           const target = canvas || window;
-
-          // Dispatch MouseEvent
           target.dispatchEvent(new MouseEvent('mousemove', {
-            clientX: pos.x,
-            clientY: pos.y,
-            bubbles: true,
-            cancelable: true,
-            view: window,
+            clientX: pos.x, clientY: pos.y,
+            bubbles: true, cancelable: true, view: window,
           }));
-
-          // Dispatch PointerEvent — wrapped in try-catch for safety
           try {
             target.dispatchEvent(new PointerEvent('pointermove', {
-              clientX: pos.x,
-              clientY: pos.y,
-              bubbles: true,
-              cancelable: true,
-              view: window,
-              isPrimary: true,
+              clientX: pos.x, clientY: pos.y,
+              bubbles: true, cancelable: true,
+              view: window, isPrimary: true,
             }));
-          } catch (e) {
-            // PointerEvent not supported
-          }
-
-          // Also fire on window as a fallback in case Spline listens there
+          } catch (e) {}
           if (target !== window) {
             window.dispatchEvent(new MouseEvent('mousemove', {
-              clientX: pos.x,
-              clientY: pos.y,
-              bubbles: true,
-              cancelable: true,
-              view: window,
+              clientX: pos.x, clientY: pos.y,
+              bubbles: true, cancelable: true, view: window,
             }));
           }
         }, i * 500);
+        timeoutIds.push(t);
       });
     }, 1500);
+    timeoutIds.push(t2);
+
+    // Main finish timer
+    const t3 = setTimeout(finish, 5000);
+    timeoutIds.push(t3);
+
+    // ESC to skip
+    const onKey = (e) => { if (e.key === 'Escape') finish(); };
+    window.addEventListener('keydown', onKey);
 
     return () => {
-      clearTimeout(timer);
+      timeoutIds.forEach(id => clearTimeout(id));
       window.removeEventListener('keydown', onKey);
     };
   }, []);
@@ -259,7 +237,7 @@ export default function IntroSequence({ onComplete }) {
         zIndex: 9999,
         background: '#05010f',
         overflow: 'hidden',
-        cursor: 'default',
+        cursor: 'auto',
       }}
     >
       {/* Circuit board background */}
