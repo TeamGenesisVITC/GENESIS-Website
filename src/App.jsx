@@ -14,6 +14,7 @@ function App() {
       )}
 
       <div
+        aria-hidden={!introComplete}
         style={{
           opacity: introComplete ? 1 : 0,
           pointerEvents: introComplete ? 'auto' : 'none',
