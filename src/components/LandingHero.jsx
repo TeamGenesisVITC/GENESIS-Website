@@ -108,32 +108,79 @@ function LandingHero() {
             Together, we're shaping the future of humanoid robotics.
           </p>
           
-          <div className="sponsors-grid">
-            <div className="sponsor-card">
-              <div className="sponsor-icon">🤝</div>
-              <h3>Partner With Us</h3>
-              <p>Help us push the boundaries of robotics and AI innovation</p>
+          <div className="sponsor-split">
+            {/* Left: Principles */}
+            <div className="sponsor-principles">
+              <p className="sponsor-eyebrow">WHY PARTNER WITH US</p>
+              <div className="sponsor-rule" aria-hidden="true" />
+              <div className="principle-list">
+                <div className="principle-item">
+                  <span className="principle-number">01</span>
+                  <div className="principle-content">
+                    <h4 className="principle-title">Real Research Impact</h4>
+                    <p className="principle-desc">Your support directly funds hardware, components, and competitions — not overhead.</p>
+                  </div>
+                </div>
+                <div className="principle-item">
+                  <span className="principle-number">02</span>
+                  <div className="principle-content">
+                    <h4 className="principle-title">Brand Visibility</h4>
+                    <p className="principle-desc">Logo placement on our robot, website, competition jerseys, and social media presence.</p>
+                  </div>
+                </div>
+                <div className="principle-item">
+                  <span className="principle-number">03</span>
+                  <div className="principle-content">
+                    <h4 className="principle-title">Talent Pipeline</h4>
+                    <p className="principle-desc">Direct access to VIT Chennai's brightest engineering minds working in AI and robotics.</p>
+                  </div>
+                </div>
+                <div className="principle-item">
+                  <span className="principle-number">04</span>
+                  <div className="principle-content">
+                    <h4 className="principle-title">Innovation Partnership</h4>
+                    <p className="principle-desc">Collaborate on projects, test use cases, and co-develop solutions in humanoid robotics.</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="sponsor-card">
-              <div className="sponsor-icon">💡</div>
-              <h3>Support Innovation</h3>
-              <p>Enable cutting-edge research and development in humanoid technology</p>
-            </div>
-            <div className="sponsor-card">
-              <div className="sponsor-icon">🌟</div>
-              <h3>Join Our Journey</h3>
-              <p>Be part of breakthrough achievements in robotics</p>
+            {/* Right: Logo wall */}
+            <div className="sponsor-logo-right">
+              <p className="sponsor-eyebrow">CURRENT SPONSORS</p>
+              <div className="sponsor-logo-wall">
+                <div className="sponsor-logo-slot">
+                  <span className="sponsor-logo-placeholder">Your Logo</span>
+                </div>
+                <div className="sponsor-logo-slot">
+                  <span className="sponsor-logo-placeholder">Your Logo</span>
+                </div>
+                <div className="sponsor-logo-slot">
+                  <span className="sponsor-logo-placeholder">Your Logo</span>
+                </div>
+                <div className="sponsor-logo-slot">
+                  <span className="sponsor-logo-placeholder">Your Logo</span>
+                </div>
+              </div>
+              <p className="sponsor-logo-sublabel">Be the first to partner with Genesis</p>
             </div>
           </div>
 
-          <div className="contact-info">
-            <h3>Interested in Sponsoring?</h3>
-            <p className="contact-text">
-              We'd love to discuss partnership opportunities with you.
-            </p>
-            <a href="mailto:genesisatvitc@gmail.com" className="contact-link">
-              genesisatvitc@gmail.com
-            </a>
+          <div className="sponsor-cta-redesign">
+            <div className="sponsor-cta-inner">
+              <span className="cta-bracket-tr" aria-hidden="true" />
+              <div className="sponsor-cta-left">
+                <p className="sponsor-cta-eyebrow">GET IN TOUCH</p>
+                <h3 className="sponsor-cta-heading">Interested in<br/><span className="sponsor-cta-highlight">Sponsoring?</span></h3>
+                <p className="sponsor-cta-sub">We'd love to discuss partnership opportunities tailored to your goals.</p>
+              </div>
+              <div className="sponsor-cta-right">
+                <a href="mailto:genesisatvitc@gmail.com" className="sponsor-cta-button">
+                  <span>Write to Us</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                <p className="sponsor-cta-email">genesisatvitc@gmail.com</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
