@@ -32,20 +32,36 @@ function LandingHero() {
               <span className="humanoids-text">Humanoids</span>
             </p>
             
-            {/* Navigation Buttons */}
-            <div className="hero-actions">
-              <button className="hero-btn primary-btn" onClick={handleRobotClick}>
-                <span className="btn-text">About Us</span>
-                <span className="btn-icon">→</span>
-              </button>
-              <button className="hero-btn secondary-btn" onClick={() => scrollToSection('sponsors')}>
-                <span className="btn-text">Sponsors</span>
-                <span className="btn-icon">★</span>
-              </button>
-              <button className="hero-btn secondary-btn" onClick={() => scrollToSection('projects')}>
-                <span className="btn-text">Projects</span>
-                <span className="btn-icon">◆</span>
-              </button>
+            {/* CTA Buttons */}
+            <div className="cta-container">
+              {/* Primary CTA */}
+              <a
+                href="/robo-hi"
+                className="cta-primary"
+                onClick={(e) => { e.preventDefault(); handleRobotClick(); }}
+              >
+                Explore Genesis
+                <span className="cta-arrow">→</span>
+              </a>
+
+              {/* Secondary CTAs */}
+              <div className="cta-secondary-group">
+                <a
+                  href="#sponsors"
+                  className="cta-secondary"
+                  onClick={(e) => { e.preventDefault(); scrollToSection('sponsors'); }}
+                >
+                  Our Sponsors
+                </a>
+                <span className="cta-divider">|</span>
+                <a
+                  href="#projects"
+                  className="cta-secondary"
+                  onClick={(e) => { e.preventDefault(); scrollToSection('projects'); }}
+                >
+                  Projects
+                </a>
+              </div>
             </div>
           </div>
           
@@ -53,6 +69,33 @@ function LandingHero() {
             <img src={robotImage} alt="Genesis Robot" className="robot-image" />
             <div className="click-hint">Click to explore →</div>
           </div>
+        </div>
+      </div>
+
+      {/* Marquee Strip */}
+      <div className="marquee-strip">
+        <div className="marquee-track">
+          {[0, 1].map((_, copy) => (
+            <div key={copy} className="marquee-content" aria-hidden={copy === 1}>
+              {[
+                'Humanoids',
+                'Artificial Intelligence',
+                'Robotics',
+                'Innovation',
+                'VIT Chennai',
+                'Mechanical Engineering',
+                'Computer Vision',
+                'Human-Robot Interaction',
+                'Embedded Systems',
+                'Deep Learning',
+              ].map((item, i) => (
+                <span key={i} className="marquee-item">
+                  {item}
+                  <span className="marquee-dot">◆</span>
+                </span>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 
