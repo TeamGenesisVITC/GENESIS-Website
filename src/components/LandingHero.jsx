@@ -185,14 +185,70 @@ function LandingHero() {
         </div>
       </section>
 
+      <div className="diagonal-divider" aria-hidden="true">
+        <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="diagonal-divider-svg">
+          {/* Background fill — matches page bg */}
+          <polygon points="0,0 1440,0 1440,20 0,80" fill="rgba(10, 6, 18, 0)"/>
+          {/* Main slash line */}
+          <line x1="0" y1="80" x2="1440" y2="20" stroke="rgba(147, 51, 234, 0.4)" strokeWidth="1"/>
+          {/* Parallel ghost line above */}
+          <line x1="0" y1="72" x2="1440" y2="12" stroke="rgba(147, 51, 234, 0.12)" strokeWidth="1"/>
+          {/* Center diamond marker */}
+          <polygon points="720,38 726,44 720,50 714,44" fill="#9333ea" opacity="0.8"/>
+          {/* Small tick marks along the slash */}
+          <line x1="240" y1="65" x2="240" y2="58" stroke="rgba(147, 51, 234, 0.3)" strokeWidth="1"/>
+          <line x1="480" y1="57" x2="480" y2="50" stroke="rgba(147, 51, 234, 0.3)" strokeWidth="1"/>
+          <line x1="960" y1="41" x2="960" y2="34" stroke="rgba(147, 51, 234, 0.3)" strokeWidth="1"/>
+          <line x1="1200" y1="33" x2="1200" y2="26" stroke="rgba(147, 51, 234, 0.3)" strokeWidth="1"/>
+        </svg>
+      </div>
+
       {/* Projects Section */}
-      <section id="projects" className="section projects-section">
-        <div className="section-container">
-          <h2 className="section-title">Our Projects</h2>
-          <p className="projects-placeholder">
-            Projects currently under development
-          </p>
+      <section id="projects" className="projects-section">
+        <p className="projects-eyebrow">WHAT WE'RE BUILDING</p>
+        <h2 className="projects-heading">In Development</h2>
+        <div className="projects-status-bar">
+          <div className="projects-bar-track">
+            <div className="projects-bar-fill" />
+          </div>
+          <span className="projects-bar-label">ACTIVE BUILD CYCLE</span>
         </div>
+        <div className="projects-grid">
+          <div className="project-card">
+            <div className="project-card-top">
+              <span className="project-dept">Mechanical</span>
+              <span className="project-status">● ACTIVE</span>
+            </div>
+            <h3 className="project-name">PROJECT ████</h3>
+            <p className="project-desc">Structural systems and joint kinematics for bipedal locomotion.</p>
+            <div className="project-footer">
+              <span className="project-clearance">CLEARANCE REQUIRED</span>
+            </div>
+          </div>
+          <div className="project-card project-card--center">
+            <div className="project-card-top">
+              <span className="project-dept">AI / Software</span>
+              <span className="project-status">● ACTIVE</span>
+            </div>
+            <h3 className="project-name">PROJECT ████</h3>
+            <p className="project-desc">Neural inference pipeline for real-time environment perception and decision making.</p>
+            <div className="project-footer">
+              <span className="project-clearance">CLEARANCE REQUIRED</span>
+            </div>
+          </div>
+          <div className="project-card">
+            <div className="project-card-top">
+              <span className="project-dept">Electrical</span>
+              <span className="project-status project-status--soon">○ SOON</span>
+            </div>
+            <h3 className="project-name">PROJECT ████</h3>
+            <p className="project-desc">Power distribution and embedded control systems for autonomous operation.</p>
+            <div className="project-footer">
+              <span className="project-clearance">CLASSIFIED</span>
+            </div>
+          </div>
+        </div>
+        <p className="projects-footnote">Full reveal scheduled for next competition cycle</p>
       </section>
     </div>
   );

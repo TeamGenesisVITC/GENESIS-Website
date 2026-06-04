@@ -254,6 +254,8 @@
 .section-container {
   max-width: 1200px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .section-title {
@@ -264,6 +266,8 @@
   color: #ffffff;
   margin-bottom: 20px;
   text-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+  position: relative;
+  z-index: 1;
 }
 
 .section-description {
@@ -276,11 +280,27 @@
   max-width: 700px;
   margin-left: auto;
   margin-right: auto;
+  position: relative;
+  z-index: 1;
 }
 
 /* Sponsors Section */
 .sponsors-section {
   background: linear-gradient(180deg, #0a0118 0%, #1a0b2e 50%, #0a0118 100%);
+  background-image: url('../assets/images/hero-background.png');
+  background-size: cover;
+  background-position: center 30%;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.sponsors-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 6, 18, 0.72);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .sponsors-grid {
@@ -288,6 +308,8 @@
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 30px;
   margin-bottom: 60px;
+  position: relative;
+  z-index: 1;
 }
 
 .sponsor-card {
@@ -330,19 +352,233 @@
 
 /* Projects Section */
 .projects-section {
-  background: #0a0118;
-  padding: 80px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80px 32px;
+  max-width: 1000px;
+  margin: 0 auto;
+  background-image: url('../assets/images/hero-background.png');
+  background-size: cover;
+  background-position: center 70%;
+  background-repeat: no-repeat;
+  position: relative;
 }
 
-.projects-placeholder {
+.projects-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 6, 18, 0.60);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.projects-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: #9333ea;
+  text-transform: uppercase;
+  margin: 0 0 16px 0;
   font-family: 'Saira', sans-serif;
-  font-size: 1.2rem;
-  font-weight: 300;
+  position: relative;
+  z-index: 1;
+}
+
+.projects-heading {
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 40px 0;
+  letter-spacing: -0.02em;
   text-align: center;
-  color: #9ca3af;
-  margin: 60px auto;
-  max-width: 600px;
+  font-family: 'Orbitron', sans-serif;
+  position: relative;
+  z-index: 1;
+}
+
+/* Progress bar */
+.projects-status-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 56px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  z-index: 1;
+}
+
+.projects-bar-track {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.projects-bar-fill {
+  height: 100%;
+  width: 60%;
+  background: linear-gradient(to right,#7c3aed,#c084fc);
+  border-radius: 2px;
+  position: relative;
+}
+
+.projects-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c084fc;
+  box-shadow: 0 0 8px #c084fc;
+  animation: pulse-dot 2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px #c084fc; }
+  50%       { opacity: 0.5; box-shadow: 0 0 16px #c084fc; }
+}
+
+.projects-bar-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+}
+
+/* Project cards */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-bottom: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.project-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(147, 51, 234, 0.15);
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(147, 51, 234, 0.015) 3px,rgba(147, 51, 234, 0.015) 4px);
+  pointer-events: none;
+}
+
+.project-card:hover {
+  border-color: rgba(147, 51, 234, 0.35);
+  transform: translateY(-3px);
+}
+
+.project-card--center {
+  border-color: rgba(147, 51, 234, 0.3);
+  background: rgba(147, 51, 234, 0.05);
+}
+
+.project-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.project-dept {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9333ea;
+}
+
+.project-status {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #4ade80;
+  font-family: monospace;
+}
+
+.project-status--soon {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.project-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  letter-spacing: 0.05em;
+  font-family: 'Orbitron', sans-serif;
+}
+
+.project-desc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.7;
+  margin: 0;
+  flex: 1;
+  font-family: 'Saira', sans-serif;
+}
+
+.project-footer {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.project-clearance {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: rgba(147, 51, 234, 0.5);
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+.projects-footnote {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.25);
   font-style: italic;
+  margin: 0;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .projects-section {
+    padding: 60px 20px;
+  }
+
+  .projects-heading {
+    font-size: 36px;
+  }
 }
 
 /* Responsive */
@@ -774,6 +1010,8 @@
   margin: 56px auto;
   padding: 0 32px;
   align-items: stretch;
+  position: relative;
+  z-index: 1;
 }
 
 .sponsor-eyebrow {
@@ -919,6 +1157,8 @@
   max-width: 1000px;
   margin: 0 auto 64px;
   padding: 0 32px;
+  position: relative;
+  z-index: 1;
 }
 
 .sponsor-cta-inner {
@@ -1069,5 +1309,28 @@
 
   .sponsor-cta-redesign {
     padding: 0 20px;
+  }
+}
+
+/* Diagonal Divider */
+.diagonal-divider {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+  display: block;
+  position: relative;
+}
+
+.diagonal-divider-svg {
+  display: block;
+  width: 100%;
+  height: 80px;
+}
+
+@media (max-width: 768px) {
+  .diagonal-divider-svg {
+    height: 50px;
   }
 }
