@@ -225,7 +225,7 @@ export default function IntroSequence({ onComplete }) {
     return () => {
       timeoutIds.forEach(id => clearTimeout(id));
       window.removeEventListener('keydown', onKey);
-    };
+    }; // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
