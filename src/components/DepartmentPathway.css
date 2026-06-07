@@ -391,3 +391,108 @@
     font-size: 0.95rem;
   }
 }
+
+/* ── Mobile (max-width: 768px) ── */
+@media (max-width: 768px) {
+  /* Kill the giant ghost GENESIS watermark — it causes horizontal overflow */
+  .department-pathway::before {
+    display: none;
+  }
+
+  .department-pathway {
+    padding: 1rem 0;
+    overflow-x: hidden;
+  }
+
+  .split-canvas {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 0 0.75rem;
+  }
+
+  .name-field {
+    border-right: none;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+    padding-right: 0;
+    padding-left: 1.25rem;
+    padding-bottom: 1.5rem;
+    max-height: 320px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .quote-field {
+    position: static;
+    padding: 0.75rem;
+    min-height: auto;
+  }
+
+  .quote-display {
+    max-width: 100%;
+    padding: 1.25rem;
+  }
+
+  .quote-name {
+    font-size: 1.1rem;
+  }
+
+  .quote-role {
+    font-size: 0.8rem;
+  }
+
+  .quote-text {
+    font-size: 0.9rem;
+  }
+
+  /* Hide fixed-position quote echo — it overflows off-screen on mobile */
+  .quote-echo {
+    display: none;
+  }
+
+  /* Disable ambient overlays that use position:fixed and can overflow */
+  .quote-field.active::before,
+  .quote-field.active::after {
+    display: none;
+  }
+
+  .name {
+    font-size: 0.85rem;
+  }
+
+  .role {
+    font-size: 0.72rem;
+  }
+
+  .name-item {
+    padding: 0.45rem 0.5rem;
+  }
+}
+
+/* ── Small mobile (max-width: 480px) ── */
+@media (max-width: 480px) {
+  .split-canvas {
+    padding: 0 0.5rem;
+  }
+
+  .name-field {
+    max-height: 260px;
+    padding-left: 1rem;
+  }
+
+  .quote-display {
+    padding: 1rem;
+  }
+
+  .quote-name {
+    font-size: 1rem;
+  }
+
+  .quote-text {
+    font-size: 0.85rem;
+    padding-left: 0.5rem;
+  }
+
+  .name {
+    font-size: 0.8rem;
+  }
+}
