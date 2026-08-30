@@ -17,18 +17,150 @@ async function generateAtlases() {
   }
 
   // 1. Read and sort all frame files (specifically frame_XXXX.webp sequence)
-  const frameFiles = fs
+  const rawFrameFiles = fs
     .readdirSync(FRAMES_DIR)
     .filter((file) => /^frame_\d+\.webp$/i.test(file))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
-  const totalFrames = frameFiles.length;
-  if (totalFrames === 0) {
+  const rawTotalFrames = rawFrameFiles.length;
+  if (rawTotalFrames === 0) {
     console.error('Error: No frame images found in', FRAMES_DIR);
     process.exit(1);
   }
 
-  console.log(`Found ${totalFrames} frames. Reading dimensions from first frame (${frameFiles[0]})...`);
+  console.log(`Found ${rawTotalFrames} raw source frames in working pool.`);
+
+  // 1b. Adaptive Perceptual-Difference Frame Selection
+  console.log('Downscaling frames to 64x64 grayscale buffers for perceptual diffing...');
+  const t0 = Date.now();
+  const thumbs = [];
+  const BATCH_SIZE = 32;
+
+  for (let i = 0; i < rawTotalFrames; i += BATCH_SIZE) {
+    const batch = rawFrameFiles.slice(i, i + BATCH_SIZE);
+    const batchBuffers = await Promise.all(
+      batch.map((f) =>
+        sharp(path.join(FRAMES_DIR, f))
+          .resize(64, 64, { fit: 'fill' })
+          .grayscale()
+          .raw()
+          .toBuffer()
+      )
+    );
+    thumbs.push(...batchBuffers);
+  }
+  console.log(`Perceptual buffers generated in ${((Date.now() - t0) / 1000).toFixed(2)}s`);
+
+  // Mean absolute pixel difference between frame i and frame j (0 to 255)
+  function calcDifference(i, j) {
+    const bufA = thumbs[i];
+    const bufB = thumbs[j];
+    let sum = 0;
+    const len = bufA.length;
+    for (let k = 0; k < len; k++) {
+      sum += Math.abs(bufA[k] - bufB[k]);
+    }
+    return sum / len;
+  }
+
+  // Doubly linked list for surviving frames
+  class FrameNode {
+    constructor(idx) {
+      this.idx = idx;
+      this.prev = null;
+      this.next = null;
+      this.removalCost = Infinity;
+    }
+  }
+
+  const nodes = [];
+  for (let i = 0; i < rawTotalFrames; i++) {
+    nodes.push(new FrameNode(i));
+  }
+  for (let i = 0; i < rawTotalFrames; i++) {
+    if (i > 0) nodes[i].prev = nodes[i - 1];
+    if (i < rawTotalFrames - 1) nodes[i].next = nodes[i + 1];
+  }
+
+  function computeCost(node) {
+    if (!node.prev || !node.next) {
+      node.removalCost = Infinity;
+    } else {
+      // Perceptual jump introduced if node is removed
+      node.removalCost = calcDifference(node.prev.idx, node.next.idx);
+    }
+  }
+
+  for (let i = 1; i < rawTotalFrames - 1; i++) {
+    computeCost(nodes[i]);
+  }
+
+  // Target budget ceiling: 250 frames
+  const TARGET_BUDGET = 250;
+  const MIN_REMOVAL_THRESHOLD = 5.0; // Stop if removing a frame introduces jump > threshold
+
+  let survivingCount = rawTotalFrames;
+
+  while (survivingCount > TARGET_BUDGET) {
+    let minNode = null;
+    let minCost = Infinity;
+
+    let curr = nodes[0].next;
+    while (curr && curr.next) {
+      if (curr.removalCost < minCost) {
+        minCost = curr.removalCost;
+        minNode = curr;
+      }
+      curr = curr.next;
+    }
+
+    if (!minNode) break;
+
+    // Stop if remaining candidate removal costs exceed threshold when budget reached
+    if (minCost > MIN_REMOVAL_THRESHOLD && survivingCount <= TARGET_BUDGET) {
+      break;
+    }
+
+    // Remove minNode (always preserving first node[0] and last node[rawTotalFrames - 1])
+    const p = minNode.prev;
+    const n = minNode.next;
+    p.next = n;
+    n.prev = p;
+    survivingCount--;
+
+    if (p.prev) computeCost(p);
+    if (n.next) computeCost(n);
+  }
+
+  // Extract surviving frame files
+  const survivingIndices = [];
+  let currNode = nodes[0];
+  while (currNode) {
+    survivingIndices.push(currNode.idx);
+    currNode = currNode.next;
+  }
+
+  const frameFiles = survivingIndices.map((idx) => rawFrameFiles[idx]);
+  const totalFrames = frameFiles.length;
+
+  console.log(`\nAdaptive selection complete: Selected ${totalFrames} frames from ${rawTotalFrames} raw frames.`);
+  console.log(`Preserved start frame: index ${survivingIndices[0]} (${frameFiles[0]})`);
+  console.log(`Preserved end frame: index ${survivingIndices[survivingIndices.length - 1]} (${frameFiles[frameFiles.length - 1]})`);
+
+  // Density mapping across original sequence
+  const segmentSize = 100;
+  console.log('\n--- Frame Density Distribution Across Original Sequence ---');
+  for (let start = 0; start < rawTotalFrames; start += segmentSize) {
+    const end = Math.min(start + segmentSize - 1, rawTotalFrames - 1);
+    const countInSegment = survivingIndices.filter((idx) => idx >= start && idx <= end).length;
+    const totalInSegment = end - start + 1;
+    const pct = ((countInSegment / totalInSegment) * 100).toFixed(1);
+    const density = countInSegment > 32 ? 'HIGH (Fast Motion)' : countInSegment > 20 ? 'MEDIUM' : 'LOW (Slow/Static Motion)';
+    console.log(`- frames ${start.toString().padStart(3, '0')}–${end.toString().padStart(3, '0')}: ${countInSegment.toString().padStart(2, ' ')} frames kept (${pct.padStart(5, ' ')}%) [${density}]`);
+  }
+  console.log('----------------------------------------------------------\n');
+
+  console.log(`Reading dimensions from first frame (${frameFiles[0]})...`);
 
   // 2. Determine frame dimensions automatically from first frame
   const firstFramePath = path.join(FRAMES_DIR, frameFiles[0]);
@@ -57,8 +189,15 @@ async function generateAtlases() {
   console.log(`- Atlas dimensions: ${atlasWidth}x${atlasHeight}px (Max safe texture: ${MAX_TEXTURE_SIZE}x${MAX_TEXTURE_SIZE}px)`);
   console.log(`- Total atlases to generate: ${totalAtlases}`);
 
-  // Ensure output directory exists
-  if (!fs.existsSync(OUTPUT_DIR)) {
+  // Ensure output directory exists and clean out stale atlas files
+  if (fs.existsSync(OUTPUT_DIR)) {
+    const existing = fs.readdirSync(OUTPUT_DIR);
+    for (const f of existing) {
+      if (/^atlas-.*\.webp$/i.test(f) || f === 'manifest.json') {
+        fs.unlinkSync(path.join(OUTPUT_DIR, f));
+      }
+    }
+  } else {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   }
 
