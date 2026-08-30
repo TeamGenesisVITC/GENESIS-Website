@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
  * Covers entire website, prevents early scrolling, and smoothly unlocks
  * the moment critical frames and site assets are ready.
  */
-export default function GlobalPreloader({ progress = 0, isReady = false }) {
+export default function GlobalPreloader({ progress = 0, isReady = false, onDismiss }) {
   const [displayPercent, setDisplayPercent] = useState(0);
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -36,10 +36,11 @@ export default function GlobalPreloader({ progress = 0, isReady = false }) {
     if (isReady && displayPercent >= 98) {
       const timer = setTimeout(() => {
         setIsDismissed(true);
+        if (onDismiss) onDismiss();
       }, 250);
       return () => clearTimeout(timer);
     }
-  }, [isReady, displayPercent]);
+  }, [isReady, displayPercent, onDismiss]);
 
   // Lock body scroll while preloading
   useEffect(() => {

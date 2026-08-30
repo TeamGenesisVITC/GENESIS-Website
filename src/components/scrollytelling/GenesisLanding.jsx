@@ -84,8 +84,23 @@ export default function GenesisLanding() {
   const lenisRef = useRef(null);
   const [activeBeat, setActiveBeat] = useState(0);
   const [legalModal, setLegalModal] = useState(null); // 'tos' | 'privacy' | 'charter' | null
-  const [siteProgress, setSiteProgress] = useState(0);
-  const [siteReady, setSiteReady] = useState(false);
+  const [canvasProgress, setCanvasProgress] = useState(0);
+  const [canvasReady, setCanvasReady] = useState(false);
+  const [heroImageLoaded, setHeroImageLoaded] = useState(false);
+  const [preloaderDismissed, setPreloaderDismissed] = useState(false);
+
+  // Overall site progress computation
+  // Site progress reaches 100 only when both canvas anchors and the hero image are fully loaded
+  const siteProgress = heroImageLoaded ? canvasProgress : Math.min(99, canvasProgress);
+  const siteReady = canvasReady && heroImageLoaded;
+
+  // Safety fallback: if hero image takes > 2s, force it loaded so we don't trap the user
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setHeroImageLoaded(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Initialize Lenis smooth scroll engine
   useEffect(() => {
@@ -146,7 +161,11 @@ export default function GenesisLanding() {
   return (
     <div className="genesis-landing">
       {/* ── 0. GLOBAL FULL-WEBSITE ASSET & TELEMETRY PRELOADER ── */}
-      <GlobalPreloader progress={siteProgress} isReady={siteReady} />
+      <GlobalPreloader 
+        progress={siteProgress} 
+        isReady={siteReady} 
+        onDismiss={() => setPreloaderDismissed(true)} 
+      />
       
       {/* ── 1. STUDIO HIGHLIGHT (Soft Overhead Pure White Lighting on Metal) ── */}
       <div 
@@ -189,7 +208,7 @@ export default function GenesisLanding() {
           <motion.div
             className="hero-eyebrow font-mono"
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={preloaderDismissed ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
             STUDENT-LED HUMANOID ROBOTICS TEAM · VIT CHENNAI
@@ -198,7 +217,7 @@ export default function GenesisLanding() {
           {/* Main Hero Headline with Interactive Full-Wordmark Hover [FIX 2] */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={preloaderDismissed ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
             transition={{ duration: 0.6, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mb-8 block"
           >
@@ -208,7 +227,7 @@ export default function GenesisLanding() {
           {/* Monochrome Lucide Bullet List with 8-pt Grid Spacing */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={preloaderDismissed ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
             transition={{ duration: 0.5, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
             <HeroPoints />
@@ -218,7 +237,7 @@ export default function GenesisLanding() {
           <motion.div
             className="hero-action-row"
             initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={preloaderDismissed ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
             transition={{ duration: 0.45, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
           >
             <button
@@ -239,7 +258,7 @@ export default function GenesisLanding() {
           <motion.div
             className="hero-stats-grid hero-stats-grid--triad"
             initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={preloaderDismissed ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
             transition={{ duration: 0.55, delay: 0.38, ease: [0.16, 1, 0.3, 1] }}
             style={{ marginTop: '240px' }}
           >
@@ -259,14 +278,21 @@ export default function GenesisLanding() {
           <motion.div
             className="hero-robot-wrap"
             initial={{ opacity: 0, x: 60 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            animate={preloaderDismissed ? { opacity: 1, x: 0 } : { opacity: 0, x: 60 }}
+            transition={{ duration: 0.9, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
             aria-hidden="true"
           >
             <img
               src="/robot-hero.png"
               alt="Team Genesis Humanoid Robot"
               className="hero-robot-img"
+              onLoad={() => setHeroImageLoaded(true)}
+              onError={() => setHeroImageLoaded(true)} // Fallback if image fails to load so preloader doesn't hang forever
+              ref={(img) => {
+                if (img && img.complete) {
+                  setHeroImageLoaded(true);
+                }
+              }}
             />
           </motion.div>
 
@@ -408,8 +434,8 @@ export default function GenesisLanding() {
           {/* Hardware Inspection Scrollytelling Canvas */}
           <ScrollCanvas 
             targetProgressRef={targetProgressRef}
-            onLoadProgress={setSiteProgress}
-            onSiteReady={setSiteReady}
+            onLoadProgress={setCanvasProgress}
+            onSiteReady={setCanvasReady}
           />
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
