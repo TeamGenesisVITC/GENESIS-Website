@@ -6,6 +6,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import Navbar from './Navbar';
 import ScrollCanvas from './ScrollCanvas';
+import GlobalPreloader from './GlobalPreloader';
 import StoryBeat, { beatItemVariants } from './StoryBeat';
 import HeroHeadline from './HeroHeadline';
 import HeroPoints from './HeroPoints';
@@ -83,6 +84,8 @@ export default function GenesisLanding() {
   const lenisRef = useRef(null);
   const [activeBeat, setActiveBeat] = useState(0);
   const [legalModal, setLegalModal] = useState(null); // 'tos' | 'privacy' | 'charter' | null
+  const [siteProgress, setSiteProgress] = useState(0);
+  const [siteReady, setSiteReady] = useState(false);
 
   // Initialize Lenis smooth scroll engine
   useEffect(() => {
@@ -142,6 +145,8 @@ export default function GenesisLanding() {
 
   return (
     <div className="genesis-landing">
+      {/* ── 0. GLOBAL FULL-WEBSITE ASSET & TELEMETRY PRELOADER ── */}
+      <GlobalPreloader progress={siteProgress} isReady={siteReady} />
       
       {/* ── 1. STUDIO HIGHLIGHT (Soft Overhead Pure White Lighting on Metal) ── */}
       <div 
@@ -401,7 +406,11 @@ export default function GenesisLanding() {
         <div className="canvas-sticky">
           
           {/* Hardware Inspection Scrollytelling Canvas */}
-          <ScrollCanvas targetProgressRef={targetProgressRef} />
+          <ScrollCanvas 
+            targetProgressRef={targetProgressRef}
+            onLoadProgress={setSiteProgress}
+            onSiteReady={setSiteReady}
+          />
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
           <StoryBeat id="beat-mechanical" visible={activeBeat === 0} align="right">

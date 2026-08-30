@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -79,7 +79,9 @@ function getTargetOffsetX(progress, width) {
 export default function ScrollCanvas({ 
   containerSelector = "#flagship-section",
   targetProgressRef,
-  onProgressUpdate 
+  onProgressUpdate,
+  onLoadProgress,
+  onSiteReady
 }) {
   const canvasRef = useRef(null);
   const imagesRef = useRef(new Array(TOTAL_FRAMES));
@@ -87,7 +89,6 @@ export default function ScrollCanvas({
   const targetFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
   const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 });
-  const [loadedCount, setLoadedCount] = useState(0);
   const triggerRef = useRef(null);
 
   // Fast nearest-loaded frame fallback to guarantee zero black flickers
@@ -184,8 +185,8 @@ export default function ScrollCanvas({
 
       const canvas = canvasRef.current;
       if (canvas) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
         canvas.style.width = `${w}px`;
         canvas.style.height = `${h}px`;
         const ctx = canvas.getContext('2d', { alpha: false });
@@ -199,34 +200,92 @@ export default function ScrollCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawFrame]);
 
-  // High-performance asynchronous frame loader with exact progress tracking
+  // ── High-Performance 2-Tier Progressive Frame Preloader ──
   useEffect(() => {
-    let loaded = 0;
-    const images = imagesRef.current;
     let isCancelled = false;
+    const images = imagesRef.current;
 
-    const onFrameComplete = (idx, img) => {
+    // 1. Build Priority Anchor Frame Set (First 15 frames + evenly spaced anchors across timeline)
+    const anchorSet = new Set();
+    for (let i = 0; i <= 15; i++) anchorSet.add(i);
+    for (let i = 0; i < TOTAL_FRAMES; i += 20) anchorSet.add(i);
+    anchorSet.add(TOTAL_FRAMES - 1);
+    const anchorIndices = Array.from(anchorSet);
+    const totalAnchors = anchorIndices.length;
+
+    let anchorsLoaded = 0;
+
+    const handleAnchorDone = (idx, img) => {
       if (isCancelled) return;
       if (img) images[idx] = img;
-      loaded++;
-      setLoadedCount(loaded);
+      anchorsLoaded++;
+      const pct = Math.min(100, Math.round((anchorsLoaded / totalAnchors) * 100));
+      if (onLoadProgress) onLoadProgress(pct);
+
       if (idx === 0) {
         drawFrame(0, getTargetOffsetX(0, window.innerWidth));
       }
+
+      if (anchorsLoaded >= totalAnchors) {
+        if (onSiteReady) onSiteReady(true);
+      }
     };
 
-    // Preload all 931 frames in parallel
-    Array.from({ length: TOTAL_FRAMES }).forEach((_, i) => {
+    // Fire anchor frames concurrently
+    anchorIndices.forEach((idx) => {
       const img = new Image();
-      img.src = getFramePath(i);
-      img.onload = () => onFrameComplete(i, img);
-      img.onerror = () => onFrameComplete(i, null);
+      img.decoding = 'async';
+      img.src = getFramePath(idx);
+      img.onload = () => handleAnchorDone(idx, img);
+      img.onerror = () => handleAnchorDone(idx, null);
     });
+
+    // 2. Non-blocking Background Turbo Stream for all remaining frames
+    const backgroundIndices = [];
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
+      if (!anchorSet.has(i)) backgroundIndices.push(i);
+    }
+
+    const loadSingleFrame = (targetIdx) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = getFramePath(targetIdx);
+        img.onload = () => {
+          if (!isCancelled) images[targetIdx] = img;
+          resolve();
+        };
+        img.onerror = () => resolve();
+      });
+    };
+
+    const loadRemainingInBackground = async () => {
+      const batchSize = 24;
+      for (let i = 0; i < backgroundIndices.length; i += batchSize) {
+        if (isCancelled) break;
+        const batch = backgroundIndices.slice(i, i + batchSize);
+        await Promise.all(batch.map(loadSingleFrame));
+        // Micro-yield to keep main UI thread at 120 FPS
+        await new Promise((r) => setTimeout(r, 4));
+      }
+    };
+
+    const bgTimer = setTimeout(loadRemainingInBackground, 80);
+
+    // Fallback safety release: Unblock site after 1.8s max regardless of connection
+    const fallbackTimer = setTimeout(() => {
+      if (!isCancelled && onSiteReady) {
+        if (onLoadProgress) onLoadProgress(100);
+        onSiteReady(true);
+      }
+    }, 1800);
 
     return () => {
       isCancelled = true;
+      clearTimeout(bgTimer);
+      clearTimeout(fallbackTimer);
     };
-  }, [drawFrame]);
+  }, [drawFrame, onLoadProgress, onSiteReady]);
 
   // GSAP ScrollTrigger Integration for progress tracking
   useEffect(() => {
@@ -297,99 +356,19 @@ export default function ScrollCanvas({
     return () => cancelAnimationFrame(animId);
   }, [targetProgressRef, drawFrame]);
 
-  const isLoaded = loadedCount >= TOTAL_FRAMES;
-  const progress = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
-
   return (
-    <>
-      {/* ── High-End Fullscreen Preloader Overlay ── */}
-      {!isLoaded && (
-        <div 
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#070709] text-white"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#070709',
-            color: '#FFFFFF',
-          }}
-        >
-          {/* Subtle Ambient Violet Radial Glow */}
-          <div 
-            style={{
-              position: 'absolute',
-              width: '420px',
-              height: '420px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, rgba(0, 0, 0, 0) 70%)',
-              pointerEvents: 'none',
-            }}
-          />
-
-          <span 
-            className="font-mono text-xs tracking-widest text-zinc-400 mb-5 uppercase"
-            style={{ letterSpacing: '0.24em', fontSize: '11px', color: '#A1A1AA' }}
-          >
-            Fetching Telemetry &amp; Assets
-          </span>
-          
-          <div className="flex items-baseline gap-1 mb-6" style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '24px' }}>
-            <span 
-              className="font-cabinet font-black text-white"
-              style={{ fontSize: 'clamp(4rem, 8vw, 6.5rem)', fontWeight: 900, lineHeight: 1 }}
-            >
-              {progress}
-            </span>
-            <span 
-              className="font-mono font-bold text-purple-400"
-              style={{ color: '#C084FC', fontSize: '1.75rem' }}
-            >
-              %
-            </span>
-          </div>
-
-          {/* Precision Neon Progress Track */}
-          <div 
-            style={{
-              width: '260px',
-              height: '3px',
-              backgroundColor: 'rgba(255, 255, 255, 0.12)',
-              borderRadius: '999px',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
-            <div 
-              style={{
-                height: '100%',
-                width: `${progress}%`,
-                background: 'linear-gradient(90deg, #7C3AED, #A855F7, #E9D5FF)',
-                boxShadow: '0 0 12px rgba(168, 85, 247, 0.8)',
-                transition: 'width 0.12s ease-out',
-                borderRadius: '999px',
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          display: 'block',
-          transform: 'translateZ(0)',
-          willChange: 'transform',
-        }}
-      />
-    </>
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'block',
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+      }}
+    />
   );
 }
