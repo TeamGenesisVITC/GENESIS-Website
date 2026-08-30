@@ -7,34 +7,9 @@
   justify-content: flex-start;
   align-items: center;
   min-height: 100vh;
-  background: #0a0118;
+  background: transparent;
   overflow: hidden;
   padding-top: 8vh;
-}
-
-/* Background image - same as landing page */
-.robo-hi::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url('../assets/images/hero-background.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  opacity: 0.15; /* Heavily subdued */
-  filter: blur(8px) grayscale(0.5); /* Blurred and desaturated */
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Neon Grid Background - Extended to entire page */
-.robo-hi {
-  position: relative;
-  background: #0a0118;
 }
 
 .neon-grid {
@@ -654,7 +629,7 @@ END OLD STYLES */
   padding: 100px 20px;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg, transparent 0%, rgba(15, 12, 41, 0.5) 100%);
+  background: transparent;
 }
 
 .contact-container {

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LandingHero.css';
-import robotImage from '../assets/images/robot.png';
 
 function LandingHero() {
   const navigate = useNavigate();
@@ -66,8 +65,9 @@ function LandingHero() {
           </div>
           
           <div className="robot-section" onClick={handleRobotClick}>
-            <img src={robotImage} alt="Genesis Robot" className="robot-image" />
-            <div className="click-hint">Click to explore →</div>
+            <div style={{ width: '100%', maxWidth: '460px', height: '480px', position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div className="click-hint" style={{ opacity: 0.8, bottom: '20px' }}>Click to explore Genesis →</div>
+            </div>
           </div>
         </div>
       </div>
