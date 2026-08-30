@@ -87,8 +87,7 @@ export default function ScrollCanvas({
   const targetFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
   const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 });
-  const [loadPercent, setLoadPercent] = useState(0);
-  const [isReady, setIsReady] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
   const triggerRef = useRef(null);
 
   // Fast nearest-loaded frame fallback to guarantee zero black flickers
@@ -200,62 +199,32 @@ export default function ScrollCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawFrame]);
 
-  // High-performance asynchronous frame loader
+  // High-performance asynchronous frame loader with exact progress tracking
   useEffect(() => {
-    const isCancelledRef = { current: false };
+    let loaded = 0;
     const images = imagesRef.current;
+    let isCancelled = false;
 
-    // Priority 1: Key anchor frames
-    const anchorFrames = [0, 50, 100, 180, 270, 360, 450, 540, 630, 720, 810, 930];
-    anchorFrames.forEach((idx) => {
-      if (idx >= TOTAL_FRAMES) return;
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = getFramePath(idx);
-      img.onload = () => {
-        if (isCancelledRef.current) return;
-        images[idx] = img;
-        if (idx === 0) {
-          setIsReady(true);
-          drawFrame(0, getTargetOffsetX(0, window.innerWidth));
-        }
-      };
-    });
-
-    // Priority 2: Progressive background preloading
-    const loadAllFrames = async () => {
-      const batchSize = 25;
-      for (let i = 0; i < TOTAL_FRAMES; i += batchSize) {
-        if (isCancelledRef.current) break;
-        const promises = [];
-        for (let j = i; j < Math.min(i + batchSize, TOTAL_FRAMES); j++) {
-          if (images[j]) continue;
-          const targetIndex = j;
-          promises.push(
-            new Promise((resolve) => {
-              const img = new Image();
-              img.decoding = 'async';
-              img.src = getFramePath(targetIndex);
-              img.onload = () => {
-                if (!isCancelledRef.current) images[targetIndex] = img;
-                resolve();
-              };
-              img.onerror = () => resolve();
-            })
-          );
-        }
-        await Promise.all(promises);
-        if (!isCancelledRef.current) {
-          setLoadPercent(Math.round(((i + batchSize) / TOTAL_FRAMES) * 100));
-        }
-        await new Promise((r) => setTimeout(r, 4));
+    const onFrameComplete = (idx, img) => {
+      if (isCancelled) return;
+      if (img) images[idx] = img;
+      loaded++;
+      setLoadedCount(loaded);
+      if (idx === 0) {
+        drawFrame(0, getTargetOffsetX(0, window.innerWidth));
       }
     };
 
-    const timer = setTimeout(loadAllFrames, 50);
+    // Preload all 931 frames in parallel
+    Array.from({ length: TOTAL_FRAMES }).forEach((_, i) => {
+      const img = new Image();
+      img.src = getFramePath(i);
+      img.onload = () => onFrameComplete(i, img);
+      img.onerror = () => onFrameComplete(i, null);
+    });
+
     return () => {
-      isCancelledRef.current = true;
-      clearTimeout(timer);
+      isCancelled = true;
     };
   }, [drawFrame]);
 
@@ -328,20 +297,85 @@ export default function ScrollCanvas({
     return () => cancelAnimationFrame(animId);
   }, [targetProgressRef, drawFrame]);
 
+  const isLoaded = loadedCount >= TOTAL_FRAMES;
+  const progress = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
+
   return (
     <>
-      {/* Preload HUD indicator */}
-      <div className={`preload-hud ${isReady || loadPercent > 15 ? 'preload-hud--hidden' : ''}`}>
-        <div className="preload-content">
-          <div className="preload-logo font-cabinet">TEAM GENESIS / ROBOTICS</div>
-          <div className="preload-bar-container">
-            <div className="preload-bar-fill" style={{ width: `${Math.max(5, loadPercent)}%` }} />
+      {/* ── High-End Fullscreen Preloader Overlay ── */}
+      {!isLoaded && (
+        <div 
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#070709] text-white"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#070709',
+            color: '#FFFFFF',
+          }}
+        >
+          {/* Subtle Ambient Violet Radial Glow */}
+          <div 
+            style={{
+              position: 'absolute',
+              width: '420px',
+              height: '420px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.16) 0%, rgba(0, 0, 0, 0) 70%)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          <span 
+            className="font-mono text-xs tracking-widest text-zinc-400 mb-5 uppercase"
+            style={{ letterSpacing: '0.24em', fontSize: '11px', color: '#A1A1AA' }}
+          >
+            Fetching Telemetry &amp; Assets
+          </span>
+          
+          <div className="flex items-baseline gap-1 mb-6" style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '24px' }}>
+            <span 
+              className="font-cabinet font-black text-white"
+              style={{ fontSize: 'clamp(4rem, 8vw, 6.5rem)', fontWeight: 900, lineHeight: 1 }}
+            >
+              {progress}
+            </span>
+            <span 
+              className="font-mono font-bold text-purple-400"
+              style={{ color: '#C084FC', fontSize: '1.75rem' }}
+            >
+              %
+            </span>
           </div>
-          <div className="preload-text font-mono">
-            INITIALIZING OPTICAL MATRIX // {loadPercent}%
+
+          {/* Precision Neon Progress Track */}
+          <div 
+            style={{
+              width: '260px',
+              height: '3px',
+              backgroundColor: 'rgba(255, 255, 255, 0.12)',
+              borderRadius: '999px',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <div 
+              style={{
+                height: '100%',
+                width: `${progress}%`,
+                background: 'linear-gradient(90deg, #7C3AED, #A855F7, #E9D5FF)',
+                boxShadow: '0 0 12px rgba(168, 85, 247, 0.8)',
+                transition: 'width 0.12s ease-out',
+                borderRadius: '999px',
+              }}
+            />
           </div>
         </div>
-      </div>
+      )}
 
       <canvas
         ref={canvasRef}
