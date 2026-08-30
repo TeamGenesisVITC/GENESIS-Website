@@ -3,14 +3,37 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import manifest from './atlas-manifest.json';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const TOTAL_FRAMES = 931;
+const {
+  totalFrames: TOTAL_FRAMES,
+  frameWidth: FRAME_WIDTH,
+  frameHeight: FRAME_HEIGHT,
+  columns: ATLAS_COLS,
+  framesPerAtlas: FRAMES_PER_ATLAS,
+  totalAtlases: TOTAL_ATLASES,
+} = manifest;
 
-function getFramePath(index) {
-  const num = String(index + 1).padStart(4, '0');
-  return `/frames/frame_${num}.webp`;
+// Preloader threshold: blocks until ALL atlases have finished loading (100% of sequence)
+const CRITICAL_ATLAS_COUNT = TOTAL_ATLASES;
+const MAX_CONCURRENT_BG = 4;
+
+// Schedule idle execution with timeout; falls back to setTimeout for Safari/unsupported environments
+function scheduleIdleTask(callback, timeout = 2000) {
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    return window.requestIdleCallback(callback, { timeout });
+  }
+  return setTimeout(callback, 1);
+}
+
+function cancelIdleTask(id) {
+  if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+    window.cancelIdleCallback(id);
+  } else {
+    clearTimeout(id);
+  }
 }
 
 /**
@@ -72,7 +95,8 @@ function getTargetOffsetX(progress, width) {
 /**
  * Polished, Robust Hardware-Accelerated Video Frame Canvas
  * - Single-source 120Hz RAF render loop with cubic physics smoothing
- * - Eliminates competing double-draw calls for zero glitch/lag
+ * - Sprite-sheet atlas streaming pipeline with critical-set fast reveal
+ * - Background priority queue with concurrency cap of 4
  * - Optical sub-frame cross-blending for silky 120Hz motion
  * - Instant zero-flicker frame cache lookup
  */
@@ -84,30 +108,119 @@ export default function ScrollCanvas({
   onSiteReady
 }) {
   const canvasRef = useRef(null);
-  const imagesRef = useRef(new Array(TOTAL_FRAMES));
+  const warmupCanvasRef = useRef(null);    // 1x1 offscreen canvas for GPU texture upload
+  const atlasesMapRef = useRef(new Map()); // Map<atlasIndex, HTMLImageElement>
+  const inFlightRef = useRef(new Map());   // Map<atlasIndex, { img, abort }>
+  const queueRef = useRef([]);             // Array<atlasIndex>
+  const activeBgCountRef = useRef(0);
+  const isCancelledRef = useRef(false);
+  const hasTriggeredReadyRef = useRef(false);
+  const loadedCriticalCountRef = useRef(0);
+  const loadAtlasRef = useRef(null);
+  const pumpQueueRef = useRef(null);
+
+  // Fix 3: Active user scroll detection for dynamic concurrency throttling
+  const isScrollingRef = useRef(false);
+  const scrollDebounceTimerRef = useRef(null);
+
+  const markUserScrolling = useCallback(() => {
+    isScrollingRef.current = true;
+    if (scrollDebounceTimerRef.current) {
+      clearTimeout(scrollDebounceTimerRef.current);
+    }
+    scrollDebounceTimerRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+      if (pumpQueueRef.current) {
+        pumpQueueRef.current();
+      }
+    }, 150);
+  }, []);
+
+  // Reusable zero-allocation frame lookup slots to prevent GC pauses in 120Hz loop
+  const frameSlotARef = useRef({
+    image: null,
+    sx: 0,
+    sy: 0,
+    sWidth: FRAME_WIDTH,
+    sHeight: FRAME_HEIGHT,
+    frameIndex: 0,
+  });
+
+  const frameSlotBRef = useRef({
+    image: null,
+    sx: 0,
+    sy: 0,
+    sWidth: FRAME_WIDTH,
+    sHeight: FRAME_HEIGHT,
+    frameIndex: 0,
+  });
+
   const currentFrameRef = useRef(0);
   const targetFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
   const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 });
   const triggerRef = useRef(null);
 
-  // Fast nearest-loaded frame fallback to guarantee zero black flickers
-  const findNearestLoaded = useCallback((targetIdx) => {
-    const images = imagesRef.current;
-    const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(targetIdx)));
-    if (images[clamped] && images[clamped].complete && images[clamped].naturalWidth > 0) {
-      return images[clamped];
+  // Bump needed atlas to the FRONT of the queue if not yet loaded
+  const prioritizeAtlas = useCallback((atlasIdx) => {
+    if (atlasIdx < 0 || atlasIdx >= TOTAL_ATLASES) return;
+    if (atlasesMapRef.current.has(atlasIdx) || inFlightRef.current.has(atlasIdx)) {
+      return;
     }
-    for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
-      const down = images[clamped - offset];
-      if (down && down.complete && down.naturalWidth > 0) return down;
-      const up = images[clamped + offset];
-      if (up && up.complete && up.naturalWidth > 0) return up;
+    const idxInQueue = queueRef.current.indexOf(atlasIdx);
+    if (idxInQueue !== -1) {
+      queueRef.current.splice(idxInQueue, 1);
     }
-    return null;
+    queueRef.current.unshift(atlasIdx);
+    if (pumpQueueRef.current) {
+      pumpQueueRef.current();
+    }
   }, []);
 
-  // Frame draw routine
+  // Zero-allocation frame lookup: writes directly into pre-allocated slot
+  const fillFrameLookup = useCallback((frameIndex, outSlot) => {
+    const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(frameIndex)));
+    const atlasIndex = Math.floor(clamped / FRAMES_PER_ATLAS);
+    const atlasImg = atlasesMapRef.current.get(atlasIndex);
+
+    if (!atlasImg || !atlasImg.complete || atlasImg.naturalWidth === 0) {
+      prioritizeAtlas(atlasIndex);
+      if (atlasIndex + 1 < TOTAL_ATLASES) {
+        prioritizeAtlas(atlasIndex + 1);
+      }
+      return false;
+    }
+
+    const localIndex = clamped % FRAMES_PER_ATLAS;
+    const col = localIndex % ATLAS_COLS;
+    const row = Math.floor(localIndex / ATLAS_COLS);
+
+    outSlot.image = atlasImg;
+    outSlot.sx = col * FRAME_WIDTH;
+    outSlot.sy = row * FRAME_HEIGHT;
+    outSlot.sWidth = FRAME_WIDTH;
+    outSlot.sHeight = FRAME_HEIGHT;
+    outSlot.frameIndex = clamped;
+    return true;
+  }, [prioritizeAtlas]);
+
+  // Fast nearest-loaded frame fallback: writes directly into slot to prevent GC pauses
+  const findNearestLoadedInto = useCallback((targetIdx, outSlot) => {
+    if (fillFrameLookup(targetIdx, outSlot)) return true;
+
+    const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(targetIdx)));
+    for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
+      if (clamped - offset >= 0) {
+        if (fillFrameLookup(clamped - offset, outSlot)) return true;
+      }
+      if (clamped + offset < TOTAL_FRAMES) {
+        if (fillFrameLookup(clamped + offset, outSlot)) return true;
+      }
+    }
+    return false;
+  }, [fillFrameLookup]);
+
+  // Frame draw routine (100% allocation-free)
   const drawFrame = useCallback((exactFrame, offsetX) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -121,13 +234,16 @@ export default function ScrollCanvas({
     const idxB = Math.min(TOTAL_FRAMES - 1, idxA + 1);
     const alphaB = clamped - idxA;
 
-    const imgA = findNearestLoaded(idxA);
-    const imgB = alphaB > 0.01 ? findNearestLoaded(idxB) : null;
+    const slotA = frameSlotARef.current;
+    const slotB = frameSlotBRef.current;
 
-    if (!imgA) return;
+    const hasA = findNearestLoadedInto(idxA, slotA);
+    const hasB = alphaB > 0.01 ? findNearestLoadedInto(idxB, slotB) : false;
 
-    const imgW = imgA.naturalWidth || 1920;
-    const imgH = imgA.naturalHeight || 1080;
+    if (!hasA || !slotA.image) return;
+
+    const imgW = slotA.sWidth || 1920;
+    const imgH = slotA.sHeight || 1080;
 
     const scale = Math.max(w / imgW, h / imgH) * 0.90;
     const drawW = Math.round(imgW * scale);
@@ -140,12 +256,12 @@ export default function ScrollCanvas({
 
     // Draw base frame A
     ctx.globalAlpha = 1.0;
-    ctx.drawImage(imgA, x, y, drawW, drawH);
+    ctx.drawImage(slotA.image, slotA.sx, slotA.sy, slotA.sWidth, slotA.sHeight, x, y, drawW, drawH);
 
     // Optical sub-frame cross-blend
-    if (alphaB > 0.01 && imgB && imgB !== imgA) {
+    if (alphaB > 0.01 && hasB && slotB.image && (slotB.image !== slotA.image || slotB.sx !== slotA.sx || slotB.sy !== slotA.sy)) {
       ctx.globalAlpha = alphaB;
-      ctx.drawImage(imgB, x, y, drawW, drawH);
+      ctx.drawImage(slotB.image, slotB.sx, slotB.sy, slotB.sWidth, slotB.sHeight, x, y, drawW, drawH);
       ctx.globalAlpha = 1.0;
     }
 
@@ -173,7 +289,7 @@ export default function ScrollCanvas({
     topFade.addColorStop(1, 'rgba(5,5,5,0)');
     ctx.fillStyle = topFade;
     ctx.fillRect(x, y - 2, drawW, 82);
-  }, [findNearestLoaded]);
+  }, [findNearestLoadedInto]);
 
   // Handle Resize
   useEffect(() => {
@@ -200,42 +316,191 @@ export default function ScrollCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawFrame]);
 
-  // ── High-Speed Exhaustive Frame Loader ──
+  // Fix 3 (cont.): Listen for scroll, wheel, and touchmove events to throttle concurrency
   useEffect(() => {
-    let isCancelled = false;
-    const images = imagesRef.current;
-    let loadedCount = 0;
+    const handleScrollActivity = () => {
+      markUserScrolling();
+    };
 
-    const handleFrameDone = (idx, img) => {
-      if (isCancelled) return;
-      if (img) images[idx] = img;
-      loadedCount++;
-      
-      const pct = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
-      if (onLoadProgress) onLoadProgress(pct);
+    window.addEventListener('wheel', handleScrollActivity, { passive: true });
+    window.addEventListener('touchmove', handleScrollActivity, { passive: true });
+    window.addEventListener('scroll', handleScrollActivity, { passive: true });
 
-      if (idx === 0) {
-        drawFrame(0, getTargetOffsetX(0, window.innerWidth));
+    return () => {
+      window.removeEventListener('wheel', handleScrollActivity);
+      window.removeEventListener('touchmove', handleScrollActivity);
+      window.removeEventListener('scroll', handleScrollActivity);
+      if (scrollDebounceTimerRef.current) {
+        clearTimeout(scrollDebounceTimerRef.current);
       }
+    };
+  }, [markUserScrolling]);
 
-      // Unlock site ONLY when all 931 frames are completely loaded
-      if (loadedCount >= TOTAL_FRAMES) {
-        if (onSiteReady) onSiteReady(true);
+  // ── Sprite-Sheet Atlas Preloader & Background Queue Pipeline with GPU Warm-up ──
+  useEffect(() => {
+    isCancelledRef.current = false;
+    hasTriggeredReadyRef.current = false;
+    loadedCriticalCountRef.current = 0;
+    activeBgCountRef.current = 0;
+
+    // Pump queue respecting dynamic concurrency cap (1 during active scroll, 4 when idle)
+    pumpQueueRef.current = () => {
+      if (isCancelledRef.current) return;
+      const maxConcurrency = isScrollingRef.current ? 1 : MAX_CONCURRENT_BG;
+      while (activeBgCountRef.current < maxConcurrency && queueRef.current.length > 0) {
+        const nextAtlasIdx = queueRef.current.shift();
+        if (atlasesMapRef.current.has(nextAtlasIdx) || inFlightRef.current.has(nextAtlasIdx)) {
+          continue;
+        }
+        if (loadAtlasRef.current) {
+          loadAtlasRef.current(nextAtlasIdx);
+        }
       }
     };
 
-    // Fire all 931 requests concurrently. 
-    // The browser's HTTP/2 network stack will manage multiplexing automatically for maximum speed.
-    for (let i = 0; i < TOTAL_FRAMES; i++) {
+    // Load an individual atlas with explicit async decode + GPU warm-up upload
+    loadAtlasRef.current = (atlasIdx) => {
+      if (atlasesMapRef.current.has(atlasIdx) || inFlightRef.current.has(atlasIdx)) {
+        return;
+      }
+      activeBgCountRef.current++;
       const img = new Image();
       img.decoding = 'async';
-      img.src = getFramePath(i);
-      img.onload = () => handleFrameDone(i, img);
-      img.onerror = () => handleFrameDone(i, null);
+
+      let isAborted = false;
+      let idleTaskId = null;
+
+      inFlightRef.current.set(atlasIdx, {
+        abort: () => {
+          isAborted = true;
+          if (idleTaskId !== null) {
+            cancelIdleTask(idleTaskId);
+          }
+          img.src = '';
+        },
+      });
+
+      const finalizeAtlas = async () => {
+        if (isAborted || isCancelledRef.current) {
+          inFlightRef.current.delete(atlasIdx);
+          activeBgCountRef.current--;
+          if (pumpQueueRef.current) pumpQueueRef.current();
+          return;
+        }
+
+        // Force full pixel decode off the main thread before cache availability
+        try {
+          if ('decode' in img) {
+            await img.decode();
+          }
+        } catch (e) {
+          // If decode fails or is cancelled, proceed to fallback
+        }
+
+        if (isAborted || isCancelledRef.current) {
+          inFlightRef.current.delete(atlasIdx);
+          activeBgCountRef.current--;
+          if (pumpQueueRef.current) pumpQueueRef.current();
+          return;
+        }
+
+        // Perform throwaway 1x1 draw to upload decoded bitmap texture into GPU memory
+        try {
+          if (!warmupCanvasRef.current) {
+            const offscreen = document.createElement('canvas');
+            offscreen.width = 1;
+            offscreen.height = 1;
+            warmupCanvasRef.current = offscreen;
+          }
+          const warmupCtx = warmupCanvasRef.current.getContext('2d', { alpha: false });
+          if (warmupCtx) {
+            warmupCtx.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1);
+          }
+        } catch (e) {
+          // Ignore warmup draw errors
+        }
+
+        // Add to cache ONLY after decode and GPU texture upload are verified
+        inFlightRef.current.delete(atlasIdx);
+        activeBgCountRef.current--;
+
+        if (!isAborted && !isCancelledRef.current) {
+          atlasesMapRef.current.set(atlasIdx, img);
+
+          // Track critical set
+          if (atlasIdx < CRITICAL_ATLAS_COUNT) {
+            loadedCriticalCountRef.current++;
+            const pct = Math.min(100, Math.round((loadedCriticalCountRef.current / CRITICAL_ATLAS_COUNT) * 100));
+            if (onLoadProgress) onLoadProgress(pct);
+
+            if (atlasIdx === 0) {
+              drawFrame(0, getTargetOffsetX(0, window.innerWidth));
+            }
+
+            if (loadedCriticalCountRef.current >= CRITICAL_ATLAS_COUNT && !hasTriggeredReadyRef.current) {
+              hasTriggeredReadyRef.current = true;
+              if (onSiteReady) onSiteReady(true);
+            }
+          }
+        }
+
+        if (pumpQueueRef.current) {
+          pumpQueueRef.current();
+        }
+      };
+
+      const handleAtlasReady = () => {
+        if (isAborted || isCancelledRef.current) {
+          inFlightRef.current.delete(atlasIdx);
+          activeBgCountRef.current--;
+          if (pumpQueueRef.current) pumpQueueRef.current();
+          return;
+        }
+
+        // Fix 2: For background atlases (post-critical set), defer decode + GPU warmup to idle period
+        if (atlasIdx >= CRITICAL_ATLAS_COUNT) {
+          idleTaskId = scheduleIdleTask(() => {
+            finalizeAtlas();
+          }, 2000);
+        } else {
+          // Critical set: finalize immediately to unblock preloader swiftly
+          finalizeAtlas();
+        }
+      };
+
+      const handleAtlasError = () => {
+        inFlightRef.current.delete(atlasIdx);
+        activeBgCountRef.current--;
+        if (pumpQueueRef.current) {
+          pumpQueueRef.current();
+        }
+      };
+
+      img.onload = handleAtlasReady;
+      img.onerror = handleAtlasError;
+      img.src = `/frame-atlases/atlas-${atlasIdx}.webp`;
+    };
+
+    // 1. Build background queue for all remaining non-critical atlases in sequential order
+    const initialBgQueue = [];
+    for (let i = CRITICAL_ATLAS_COUNT; i < TOTAL_ATLASES; i++) {
+      initialBgQueue.push(i);
+    }
+    queueRef.current = initialBgQueue;
+
+    // 2. Load critical set (atlases 0 to CRITICAL_ATLAS_COUNT - 1)
+    for (let i = 0; i < CRITICAL_ATLAS_COUNT; i++) {
+      if (loadAtlasRef.current) {
+        loadAtlasRef.current(i);
+      }
     }
 
+    const inFlight = inFlightRef.current;
+
     return () => {
-      isCancelled = true;
+      isCancelledRef.current = true;
+      inFlight.forEach(({ abort }) => abort());
+      inFlight.clear();
     };
   }, [drawFrame, onLoadProgress, onSiteReady]);
 
@@ -250,6 +515,7 @@ export default function ScrollCanvas({
       end: "bottom bottom",
       scrub: false, // Progress tracked directly by unified 120Hz RAF loop
       onUpdate: (self) => {
+        markUserScrolling();
         const progress = Math.min(Math.max(self.progress, 0), 1);
         targetFrameRef.current = progress * (TOTAL_FRAMES - 1);
         if (onProgressUpdate) {
@@ -263,13 +529,14 @@ export default function ScrollCanvas({
         triggerRef.current.kill();
       }
     };
-  }, [containerSelector, onProgressUpdate]);
+  }, [containerSelector, onProgressUpdate, markUserScrolling]);
 
   // Single Unified 120Hz RAF Render Loop (Zero Glitch / Zero Double-Draw)
   useEffect(() => {
     let animId;
     let lastDrawnFrame = -1;
     let lastDrawnOffset = -99999;
+    let lastTargetProgress = 0;
 
     const render = () => {
       // Determine active target frame
@@ -279,6 +546,10 @@ export default function ScrollCanvas({
       } else if (triggerRef.current) {
         targetProgress = triggerRef.current.progress;
       }
+
+      // Fix 2: Lightweight velocity estimation for lookahead atlas prefetching
+      const progressDelta = targetProgress - lastTargetProgress;
+      lastTargetProgress = targetProgress;
 
       const exactTargetFrame = targetProgress * (TOTAL_FRAMES - 1);
       const { w } = dimensionsRef.current;
@@ -301,12 +572,25 @@ export default function ScrollCanvas({
         lastDrawnOffset = currentOffsetXRef.current;
       }
 
+      // Proactively prefetch 1-3 atlases ahead in the scrub direction during movement
+      if (Math.abs(progressDelta) > 0.0002) {
+        const direction = Math.sign(progressDelta);
+        const currentAtlasIdx = Math.floor(currentFrameRef.current / FRAMES_PER_ATLAS);
+        const lookaheadCount = Math.abs(progressDelta) > 0.005 ? 3 : 2;
+        for (let i = 1; i <= lookaheadCount; i++) {
+          const aheadAtlasIdx = currentAtlasIdx + direction * i;
+          if (aheadAtlasIdx >= 0 && aheadAtlasIdx < TOTAL_ATLASES) {
+            prioritizeAtlas(aheadAtlasIdx);
+          }
+        }
+      }
+
       animId = requestAnimationFrame(render);
     };
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [targetProgressRef, drawFrame]);
+  }, [targetProgressRef, drawFrame, prioritizeAtlas]);
 
   return (
     <canvas
@@ -323,4 +607,4 @@ export default function ScrollCanvas({
       }}
     />
   );
-}
+}
