@@ -8,18 +8,9 @@ import { softwareMembers } from '../../data/softwareMembers';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const DEPARTMENTS = [
-  { id: 'overview', num: '00', title: 'Roster Overview', shortName: 'Overview' },
-  { id: 'leads', num: '01', title: 'Executive Leadership', shortName: 'Leadership' },
-  { id: 'mechanical', num: '02', title: 'Mechanical & Structures', shortName: 'Mechanical' },
-  { id: 'electrical', num: '03', title: 'Electrical & Power Bus', shortName: 'Electrical' },
-  { id: 'software', num: '04', title: 'Software & Embodied AI', shortName: 'Software & AI' },
-];
-
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
-  const [activeSlide, setActiveSlide] = useState(0);
   const [hoveredMember, setHoveredMember] = useState(null);
 
   // GSAP Pinned Horizontal Scroll
@@ -28,7 +19,6 @@ export default function TeamSection() {
     const track = trackRef.current;
     if (!section || !track) return;
 
-    const totalSlides = 5;
     const ctx = gsap.context(() => {
       const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
@@ -43,10 +33,6 @@ export default function TeamSection() {
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
-          onUpdate: (self) => {
-            const idx = Math.min(totalSlides - 1, Math.floor(self.progress * totalSlides + 0.05));
-            setActiveSlide(idx);
-          },
         },
       });
     }, section);
