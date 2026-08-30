@@ -187,7 +187,7 @@ export default function GenesisLanding() {
           position: 'fixed',
           inset: 0,
           zIndex: 0,
-          opacity: 0.4,
+          opacity: 0.12,
           mixBlendMode: 'overlay',
           backgroundImage: 'url(/noise-texture.png)',
           backgroundRepeat: 'repeat',
