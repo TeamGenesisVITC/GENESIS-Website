@@ -176,7 +176,10 @@ export default function GenesisLanding() {
         }}
       />
 
-      {/* ── 2. PHYSICAL TEXTURE (Sandblasted Anodized Aluminum SVG Grain) ── */}
+      {/* ── 2. PHYSICAL TEXTURE (Sandblasted Anodized Aluminum Grain) ── */}
+      {/* Static PNG replaces live SVG feTurbulence filter: eliminates CPU repaint on every scroll tick.
+          will-change:transform promotes this to its own GPU compositor layer so the browser
+          never repaints it during scroll — it's just composited over the page at zero cost. */}
       <div 
         aria-hidden="true" 
         className="textured-silver-grain pointer-events-none"
@@ -186,7 +189,11 @@ export default function GenesisLanding() {
           zIndex: 0,
           opacity: 0.4,
           mixBlendMode: 'overlay',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          backgroundImage: 'url(/noise-texture.png)',
+          backgroundRepeat: 'repeat',
+          backgroundSize: '256px 256px',
+          willChange: 'transform',
+          transform: 'translateZ(0)',
         }}
       />
 
