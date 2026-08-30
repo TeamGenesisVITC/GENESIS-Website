@@ -200,90 +200,42 @@ export default function ScrollCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawFrame]);
 
-  // ── High-Performance 2-Tier Progressive Frame Preloader ──
+  // ── High-Speed Exhaustive Frame Loader ──
   useEffect(() => {
     let isCancelled = false;
     const images = imagesRef.current;
+    let loadedCount = 0;
 
-    // 1. Build Priority Anchor Frame Set (First 15 frames + evenly spaced anchors across timeline)
-    const anchorSet = new Set();
-    for (let i = 0; i <= 15; i++) anchorSet.add(i);
-    for (let i = 0; i < TOTAL_FRAMES; i += 20) anchorSet.add(i);
-    anchorSet.add(TOTAL_FRAMES - 1);
-    const anchorIndices = Array.from(anchorSet);
-    const totalAnchors = anchorIndices.length;
-
-    let anchorsLoaded = 0;
-
-    const handleAnchorDone = (idx, img) => {
+    const handleFrameDone = (idx, img) => {
       if (isCancelled) return;
       if (img) images[idx] = img;
-      anchorsLoaded++;
-      const pct = Math.min(100, Math.round((anchorsLoaded / totalAnchors) * 100));
+      loadedCount++;
+      
+      const pct = Math.min(100, Math.round((loadedCount / TOTAL_FRAMES) * 100));
       if (onLoadProgress) onLoadProgress(pct);
 
       if (idx === 0) {
         drawFrame(0, getTargetOffsetX(0, window.innerWidth));
       }
 
-      if (anchorsLoaded >= totalAnchors) {
+      // Unlock site ONLY when all 931 frames are completely loaded
+      if (loadedCount >= TOTAL_FRAMES) {
         if (onSiteReady) onSiteReady(true);
       }
     };
 
-    // Fire anchor frames concurrently
-    anchorIndices.forEach((idx) => {
+    // Fire all 931 requests concurrently. 
+    // The browser's HTTP/2 network stack will manage multiplexing automatically for maximum speed.
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
       const img = new Image();
       img.decoding = 'async';
-      img.src = getFramePath(idx);
-      img.onload = () => handleAnchorDone(idx, img);
-      img.onerror = () => handleAnchorDone(idx, null);
-    });
-
-    // 2. Non-blocking Background Turbo Stream for all remaining frames
-    const backgroundIndices = [];
-    for (let i = 0; i < TOTAL_FRAMES; i++) {
-      if (!anchorSet.has(i)) backgroundIndices.push(i);
+      img.src = getFramePath(i);
+      img.onload = () => handleFrameDone(i, img);
+      img.onerror = () => handleFrameDone(i, null);
     }
-
-    const loadSingleFrame = (targetIdx) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.decoding = 'async';
-        img.src = getFramePath(targetIdx);
-        img.onload = () => {
-          if (!isCancelled) images[targetIdx] = img;
-          resolve();
-        };
-        img.onerror = () => resolve();
-      });
-    };
-
-    const loadRemainingInBackground = async () => {
-      const batchSize = 24;
-      for (let i = 0; i < backgroundIndices.length; i += batchSize) {
-        if (isCancelled) break;
-        const batch = backgroundIndices.slice(i, i + batchSize);
-        await Promise.all(batch.map(loadSingleFrame));
-        // Micro-yield to keep main UI thread at 120 FPS
-        await new Promise((r) => setTimeout(r, 4));
-      }
-    };
-
-    const bgTimer = setTimeout(loadRemainingInBackground, 80);
-
-    // Fallback safety release: Unblock site after 1.8s max regardless of connection
-    const fallbackTimer = setTimeout(() => {
-      if (!isCancelled && onSiteReady) {
-        if (onLoadProgress) onLoadProgress(100);
-        onSiteReady(true);
-      }
-    }, 1800);
 
     return () => {
       isCancelled = true;
-      clearTimeout(bgTimer);
-      clearTimeout(fallbackTimer);
     };
   }, [drawFrame, onLoadProgress, onSiteReady]);
 
