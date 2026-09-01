@@ -230,23 +230,7 @@ export default function GenesisLanding() {
             </button>
           </motion.div>
 
-          {/* Typographic Stats Grid with Split-Flap Counters — Positioned downward */}
-          <motion.div
-            className="hero-stats-grid hero-stats-grid--triad"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.38, ease: [0.16, 1, 0.3, 1] }}
-            style={{ marginTop: '240px' }}
-          >
-            <AnimatedMetric targetValue="2024" suffix="" label="Year Established" />
-            <div className="hero-stat-divider" />
-            <AnimatedMetric targetValue="50" suffix="+" label="Active Engineers" />
-            <div className="hero-stat-divider" />
-            <div className="hero-stat-item">
-              <div className="hero-stat-value font-cabinet">03</div>
-              <div className="hero-stat-label font-satoshi">Engineering Disciplines</div>
-            </div>
-          </motion.div>
+          <div aria-hidden="true" style={{ height: '240px', width: '100%' }} />
 
           </div>
 
@@ -274,15 +258,13 @@ export default function GenesisLanding() {
 
           <div className="monograph-split">
             <div className="monograph-heading-col">
+              <div className="font-mono" style={{ marginBottom: '0.75rem', color: '#8b8f98', letterSpacing: '0.08em', fontSize: '0.72rem', lineHeight: 1.5, fontWeight: 700 }}>
+                /* est. 2025 — 50+ engineers — 03 disciplines */
+              </div>
               <h2 className="monograph-title font-cabinet">
                 Born at VIT Chennai.<br />
                 Built without permission.
               </h2>
-              <div className="monograph-meta font-satoshi">
-                <div>Founded 2024 · VIT Chennai Campus</div>
-                <div>15+ Student Engineers · 3 Disciplines</div>
-                <div>Independent · Self-Funded · Shipping Hardware</div>
-              </div>
             </div>
 
             <div className="monograph-content-col">
