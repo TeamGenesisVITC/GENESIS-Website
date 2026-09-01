@@ -2325,7 +2325,7 @@ html.lenis, html.lenis body {
 
 .hero-robot-wrap {
   position: absolute;
-  top: -160px;            /* Vertical position: move up(-) or down(+) */
+  top: -100px;           /* Vertical position: move up(-) or down(+); lowered by ~10% */
   right: -370px;        /* Horizontal position: move right(-) or left(+) */
   width: 1300px;        /* Overall robot bounding box width */
   height: 110%;
