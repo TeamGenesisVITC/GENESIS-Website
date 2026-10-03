@@ -82,11 +82,11 @@ function CircuitBackground() {
 
         {/* Base circuit pattern */}
         <rect width="100%" height="100%" fill="url(#circuit)"/>
-        {/* Overlay glow pass — same pattern, filtered */}
+        {/* Overlay glow pass - same pattern, filtered */}
         <rect width="100%" height="100%" fill="url(#circuit)" filter="url(#glow)" opacity="0.4"/>
       </svg>
 
-      {/* Travelling pulse dots — CSS animated */}
+      {/* Travelling pulse dots - CSS animated */}
       <style>{`
         @keyframes travel-x {
           0%   { left: 0%;   opacity: 0; }
@@ -156,7 +156,7 @@ export default function IntroSequence({ onComplete }) {
   useEffect(() => {
     const timeoutIds = [];
 
-    // Letter reveal — stagger each span in after 0.5s
+    // Letter reveal - stagger each span in after 0.5s
     const t1 = setTimeout(() => {
       const spans = genesisRef.current?.querySelectorAll('span');
       if (!spans) return;
@@ -169,7 +169,7 @@ export default function IntroSequence({ onComplete }) {
     }, 500);
     timeoutIds.push(t1);
 
-    // Cursor sweep — starts at 1500ms, after all letters have appeared
+    // Cursor sweep - starts at 1500ms, after all letters have appeared
     const t2 = setTimeout(() => {
       if (done.current) return;
       const container = genesisRef.current;
@@ -252,7 +252,7 @@ export default function IntroSequence({ onComplete }) {
         pointerEvents: 'none',
       }} />
 
-      {/* Step 2 — Spline wrapped in a ref'd container div */}
+      {/* Step 2 - Spline wrapped in a ref'd container div */}
       <div
         ref={splineContainerRef}
         style={{ position: 'absolute', inset: 0, zIndex: 2, maxWidth: '100vw', overflow: 'hidden' }}
@@ -268,7 +268,7 @@ export default function IntroSequence({ onComplete }) {
         />
       </div>
 
-      {/* GENESIS text — Orbitron, white with soft purple glow */}
+      {/* GENESIS text - Orbitron, white with soft purple glow */}
       <div
         ref={genesisRef}
         style={{
@@ -303,7 +303,7 @@ export default function IntroSequence({ onComplete }) {
         ))}
       </div>
 
-      {/* Skip button — tappable on mobile, keyboard accessible */}
+      {/* Skip button - tappable on mobile, keyboard accessible */}
       <button
         onClick={finish}
         style={{

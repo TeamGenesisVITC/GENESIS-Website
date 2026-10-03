@@ -82,7 +82,7 @@ export const coFounders = [
   }
 ];
 
-// Legacy Leads (Generation 01 — former leadership, honoured)
+// Legacy Leads (Generation 01 - former leadership, honoured)
 export const legacyLeads = [
   {
     id: 1,
@@ -106,7 +106,7 @@ export const legacyLeads = [
     id: 4,
     name: "Sri Nithish S",
     role: "Mechanical Lead",
-    quote: "Creation is risky — that’s why we start first"
+    quote: "Creation is risky, that’s why we start first"
   },
   {
     id: 5,
@@ -134,7 +134,7 @@ export const legacyLeads = [
   }
 ];
 
-// Legacy Members (Generation 01 — former members, honoured)
+// Legacy Members (Generation 01 - former members, honoured)
 export const legacyMembers = [
   {
     id: 1,

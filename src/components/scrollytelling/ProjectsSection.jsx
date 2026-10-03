@@ -188,7 +188,7 @@ export default function ProjectsSection() {
             <div className="deep-panel-header">
               <div>
                 <span className="deep-panel-tag font-mono">SYSTEM DOSSIER · {selectedProj.num}</span>
-                <h4 className="deep-panel-title font-cabinet">{selectedProj.name} — Technical Architecture</h4>
+                <h4 className="deep-panel-title font-cabinet">{selectedProj.name} · Technical Architecture</h4>
               </div>
               <div className="deep-panel-status-pill font-mono">
                 <span className="status-indicator-dot" />

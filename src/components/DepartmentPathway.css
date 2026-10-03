@@ -394,7 +394,7 @@
 
 /* ── Mobile (max-width: 768px) ── */
 @media (max-width: 768px) {
-  /* Kill the giant ghost GENESIS watermark — it causes horizontal overflow */
+  /* Kill the giant ghost GENESIS watermark - it causes horizontal overflow */
   .department-pathway::before {
     display: none;
   }
@@ -444,7 +444,7 @@
     font-size: 0.9rem;
   }
 
-  /* Hide fixed-position quote echo — it overflows off-screen on mobile */
+  /* Hide fixed-position quote echo - it overflows off-screen on mobile */
   .quote-echo {
     display: none;
   }

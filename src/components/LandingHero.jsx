@@ -118,7 +118,7 @@ function LandingHero() {
                   <span className="principle-number">01</span>
                   <div className="principle-content">
                     <h4 className="principle-title">Real Research Impact</h4>
-                    <p className="principle-desc">Your support directly funds hardware, components, and competitions — not overhead.</p>
+                    <p className="principle-desc">Your support directly funds hardware, components, and competitions, not overhead.</p>
                   </div>
                 </div>
                 <div className="principle-item">
@@ -187,7 +187,7 @@ function LandingHero() {
 
       <div className="diagonal-divider" aria-hidden="true">
         <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="diagonal-divider-svg">
-          {/* Background fill — matches page bg */}
+          {/* Background fill - matches page bg */}
           <polygon points="0,0 1440,0 1440,20 0,80" fill="rgba(10, 6, 18, 0)"/>
           {/* Main slash line */}
           <line x1="0" y1="80" x2="1440" y2="20" stroke="rgba(147, 51, 234, 0.4)" strokeWidth="1"/>

@@ -34,7 +34,7 @@ function Leads() {
             <h1 className="leads-title">LEADS</h1>
           </div>
           <p className="leads-subtitle">
-            The Leads are the connectors of Genesis — bridging ideas, people, and departments with empathy and energy.
+            The Leads are the connectors of Genesis, bridging ideas, people, and departments with empathy and energy.
           </p>
         </div>
 
@@ -55,7 +55,7 @@ function Leads() {
                 
                 <p>that innovation is allowed to freely circulate among all departments.</p>
                 
-                <p>Together, we grow, laugh, and learn—side by side.</p>
+                <p>Together, we grow, laugh, and learn, side by side.</p>
               </div>
             </div>
           </div>

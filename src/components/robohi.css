@@ -986,7 +986,7 @@ END OLD STYLES */
   }
 }
 
-/* ── Mobile (max-width: 768px) — additional rules ── */
+/* ── Mobile (max-width: 768px) - additional rules ── */
 @media (max-width: 768px) {
   .departments-section {
     padding: 0 12px;
@@ -1052,7 +1052,7 @@ END OLD STYLES */
   }
 }
 
-/* ── Small mobile (max-width: 480px) — additional rules ── */
+/* ── Small mobile (max-width: 480px) - additional rules ── */
 @media (max-width: 480px) {
   .robo-hi {
     padding-top: 4vh;

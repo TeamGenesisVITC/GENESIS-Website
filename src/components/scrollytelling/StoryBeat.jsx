@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
- * Editorial StoryBeat — Fluid Crossfade & Snappy Expo-Out Transition
+ * Editorial StoryBeat - Fluid Crossfade & Snappy Expo-Out Transition
  * Smoothly interpolates with zero blank gaps between consecutive spec beats.
  */
 

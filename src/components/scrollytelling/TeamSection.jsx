@@ -128,7 +128,7 @@ export default function TeamSection() {
                   <span className="slide-tag font-mono">01 // GOVERNANCE &amp; PLATFORM STRATEGY</span>
                   <h3 className="slide-heading font-cabinet">Executive Leadership</h3>
                   <p className="slide-lead-copy font-satoshi">
-                    Leadership in Genesis is about harmony rather than hierarchy — bridging disciplines, eliminating bottlenecks, and maintaining velocity.
+                    Leadership in Genesis is about harmony rather than hierarchy: bridging disciplines, eliminating bottlenecks, and maintaining velocity.
                   </p>
                 </div>
                 <div className="header-badge-group font-mono">
@@ -290,7 +290,7 @@ export default function TeamSection() {
                   <span className="slide-tag font-mono">03 // GaN FOC &amp; 48V SPLIT-BUS POWER</span>
                   <h3 className="slide-heading font-cabinet">Electrical &amp; Control Systems</h3>
                   <p className="slide-lead-copy font-satoshi">
-                    The kinetic heartbeat — powering every joint with custom GaN field-oriented motor drivers, 48V isolated power buses, and sub-millisecond CAN-FD.
+                    The kinetic heartbeat, powering every joint with custom GaN field-oriented motor drivers, 48V isolated power buses, and sub-millisecond CAN-FD.
                   </p>
                 </div>
                 <div className="header-badge-group font-mono">
@@ -375,7 +375,7 @@ export default function TeamSection() {
                   <span className="slide-tag font-mono">04 // 1,000 HZ DETERMINISTIC CONTROL &amp; RL</span>
                   <h3 className="slide-heading font-cabinet">Software &amp; Embodied AI</h3>
                   <p className="slide-lead-copy font-satoshi">
-                    The neural cognition core — deterministic sub-millisecond balance loops, sim-to-real reinforcement learning policies, and spatial 360° LiDAR perception.
+                    The neural cognition core: deterministic sub-millisecond balance loops, sim-to-real reinforcement learning policies, and spatial 360° LiDAR perception.
                   </p>
                 </div>
                 <div className="header-badge-group font-mono">

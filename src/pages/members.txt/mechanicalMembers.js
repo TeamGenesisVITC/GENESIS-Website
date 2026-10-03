@@ -3,7 +3,7 @@ export const mechanicalMembers = [
     id: 1,
     name: "Sri Nithish S",
     role: "Team Member",
-    quote: "Creation is risky — that's why we start first"
+    quote: "Creation is risky - that's why we start first"
   },
   {
     id: 2,

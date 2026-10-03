@@ -328,7 +328,7 @@
   }
 }
 
-/* ── Mobile (max-width: 768px) — layout fixes ── */
+/* ── Mobile (max-width: 768px) - layout fixes ── */
 @media (max-width: 768px) {
   .department-layout {
     padding: 80px 16px 40px 16px;

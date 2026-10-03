@@ -236,7 +236,7 @@ export default function GenesisLanding() {
 
           </div>
 
-          {/* ── Robot Illustration — Right Side ── */}
+          {/* ── Robot Illustration - Right Side ── */}
           <motion.div
             className="hero-robot-wrap"
             initial={{ opacity: 0, x: 60 }}
@@ -261,7 +261,7 @@ export default function GenesisLanding() {
           <div className="monograph-split">
             <div className="monograph-heading-col">
               <div className="font-mono" style={{ marginBottom: '0.75rem', color: '#8b8f98', letterSpacing: '0.08em', fontSize: '0.72rem', lineHeight: 1.5, fontWeight: 700 }}>
-                {'/* est. 2025 — 50+ engineers — 03 disciplines */'}
+                {'/* est. 2025 · 50+ engineers · 03 disciplines */'}
               </div>
               <h2 className="monograph-title font-cabinet">
                 Born at VIT Chennai.<br />
@@ -271,7 +271,7 @@ export default function GenesisLanding() {
 
             <div className="monograph-content-col">
               <p className="mono-para">
-                <strong>Team Genesis</strong> is an independent collective of engineering students at VIT Chennai — no corporate backing, no institutional budget. We pool our own resources, work outside office hours, and machine parts by hand.
+                <strong>Team Genesis</strong> is an independent collective of engineering students at VIT Chennai. No corporate backing, no institutional budget. We pool our own resources, work outside office hours, and machine parts by hand.
               </p>
               <p className="mono-para">
                 Hardware that typically requires a funded R&amp;D lab is being designed, machined, soldered, and flashed by students. We are not waiting for permission to build the next generation of humanoid robotics. We are just building it.
@@ -400,7 +400,7 @@ export default function GenesisLanding() {
             </motion.h2>
 
             <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
-              KP-17 is Team Genesis's initial physical research platform. Built upon an accessible 17-DOF humanoid kinematic frame, our engineering objective is bringing the hardware to life — integrating custom sensor feedback architectures, low-latency electronics, and closed-loop self-balancing software.
+              KP-17 is Team Genesis's initial physical research platform. Built upon an accessible 17-DOF humanoid kinematic frame, our engineering objective is bringing the hardware to life: integrating custom sensor feedback architectures, low-latency electronics, and closed-loop self-balancing software.
             </motion.p>
 
             <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
@@ -468,7 +468,7 @@ export default function GenesisLanding() {
             </motion.h2>
 
             <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
-              We are actively developing KP-17's comprehensive sensor feedback architecture — fusing 6-axis IMUs, foot ground-contact sensors, and joint current monitors across a deterministic high-speed CAN-FD communication bus.
+              We are actively developing KP-17's comprehensive sensor feedback architecture, fusing 6-axis IMUs, foot ground-contact sensors, and joint current monitors across a deterministic high-speed CAN-FD communication bus.
             </motion.p>
 
             <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
@@ -576,7 +576,7 @@ export default function GenesisLanding() {
           <div className="hero-eyebrow font-satoshi">Sponsorship</div>
           <h2 className="monograph-title font-cabinet">Fuel the next generation<br />of hardware engineers.</h2>
           <p className="section-lead-subtitle">
-            You are not just funding a robot. You are getting priority access to a battle-tested pool of mechanical, electrical, and software engineers who have already shipped working hardware under pressure — and who are actively entering the job market.
+            You are not just funding a robot. You are getting priority access to a battle-tested pool of mechanical, electrical, and software engineers who have already shipped working hardware under pressure and who are actively entering the job market.
           </p>
 
           {/* 2-Column Industrial Collaboration Framework */}
@@ -595,7 +595,7 @@ export default function GenesisLanding() {
               <div className="col-block">
                 <div className="block-title font-cabinet">Live Component Testing</div>
                 <p className="block-desc">
-                  Deploy your microcontrollers, GaN modules, sensors, or actuators on our active bipedal platform for real-world stress benchmarking. Student-run, honest data — not a marketing demo.
+                  Deploy your microcontrollers, GaN modules, sensors, or actuators on our active bipedal platform for real-world stress benchmarking. Student-run, honest data. Not a marketing demo.
                 </p>
                 <div className="block-meta font-mono">Benchmark reports · Joint demos · Direct engineering feedback</div>
               </div>
@@ -603,7 +603,7 @@ export default function GenesisLanding() {
               <div className="col-block">
                 <div className="block-title font-cabinet">Priority Talent Pipeline</div>
                 <p className="block-desc">
-                  Sponsors get first-look recruiting access to our graduating engineers. Mechanical designers, embedded systems engineers, control theorists, and AI specialists — all pressure-tested in competitive environments like IIT Bombay Techfest.
+                  Sponsors get first-look recruiting access to our graduating engineers. Mechanical designers, embedded systems engineers, control theorists, and AI specialists, all pressure-tested in competitive environments like IIT Bombay Techfest.
                 </p>
                 <div className="block-meta font-mono">Pre-graduation recruiting · Internship pipeline · Sponsored roles</div>
               </div>

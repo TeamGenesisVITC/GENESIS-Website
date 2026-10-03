@@ -4,7 +4,7 @@ import React, { useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
 
 /**
- * HeroHeadline — Cursor Spotlight Reveal Component
+ * HeroHeadline - Cursor Spotlight Reveal Component
  * Dual-layer masking technique:
  * - Base Layer: Massive solid carbon black #111113 text
  * - Spotlight Layer: Vibrant purple gradient revealed exclusively within cursor radius
