@@ -20,6 +20,7 @@ gsap.registerPlugin(ScrollTrigger);
  * Split-Flap Decisive Numeric Counter
  * Decisively animates metrics into whole numbers upon entering viewport.
  */
+// eslint-disable-next-line no-unused-vars
 function AnimatedMetric({ targetValue, suffix = '', label }) {
   const [displayValue, setDisplayValue] = useState(targetValue);
   const elementRef = useRef(null);
@@ -260,7 +261,7 @@ export default function GenesisLanding() {
           <div className="monograph-split">
             <div className="monograph-heading-col">
               <div className="font-mono" style={{ marginBottom: '0.75rem', color: '#8b8f98', letterSpacing: '0.08em', fontSize: '0.72rem', lineHeight: 1.5, fontWeight: 700 }}>
-                /* est. 2025 — 50+ engineers — 03 disciplines */
+                {'/* est. 2025 — 50+ engineers — 03 disciplines */'}
               </div>
               <h2 className="monograph-title font-cabinet">
                 Born at VIT Chennai.<br />
