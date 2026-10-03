@@ -19,6 +19,10 @@ const {
 // Preloader threshold: blocks until ALL atlases have finished loading (100% of sequence)
 const CRITICAL_ATLAS_COUNT = TOTAL_ATLASES;
 const MAX_CONCURRENT_BG = 4;
+// Source frames are 1920px wide, so backing the canvas beyond 1.5x DPR adds fill cost without detail
+const MAX_CANVAS_DPR = 1.5;
+// Inertia rate (per second); equals the previous 0.18-per-frame lerp at 60 Hz, now refresh-rate independent
+const DAMPING_PER_SECOND = 11.9;
 
 // Schedule idle execution with timeout; falls back to setTimeout for Safari/unsupported environments
 function scheduleIdleTask(callback, timeout = 2000) {
@@ -159,6 +163,7 @@ export default function ScrollCanvas({
   const targetFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
   const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 });
+  const fadeCacheRef = useRef({ ctx: null, drawW: 0, drawH: 0, gradients: null });
   const triggerRef = useRef(null);
 
   // Bump needed atlas to the FRONT of the queue if not yet loaded
@@ -265,30 +270,44 @@ export default function ScrollCanvas({
       ctx.globalAlpha = 1.0;
     }
 
-    // Pinned edge feathering to melt seamlessly into #050505
-    const leftFade = ctx.createLinearGradient(x, 0, x + 300, 0);
-    leftFade.addColorStop(0, '#050505');
-    leftFade.addColorStop(1, 'rgba(5,5,5,0)');
+    // Pinned edge feathering to melt seamlessly into #050505.
+    // Gradients are built once per size in frame-local coords, then positioned via translate.
+    const fadeCache = fadeCacheRef.current;
+    if (fadeCache.ctx !== ctx || fadeCache.drawW !== drawW || fadeCache.drawH !== drawH) {
+      const leftFade = ctx.createLinearGradient(0, 0, 300, 0);
+      leftFade.addColorStop(0, '#050505');
+      leftFade.addColorStop(1, 'rgba(5,5,5,0)');
+
+      const rightFade = ctx.createLinearGradient(drawW - 300, 0, drawW, 0);
+      rightFade.addColorStop(0, 'rgba(5,5,5,0)');
+      rightFade.addColorStop(1, '#050505');
+
+      const bottomFade = ctx.createLinearGradient(0, drawH - 200, 0, drawH);
+      bottomFade.addColorStop(0, 'rgba(5,5,5,0)');
+      bottomFade.addColorStop(1, '#050505');
+
+      const topFade = ctx.createLinearGradient(0, 0, 0, 80);
+      topFade.addColorStop(0, '#050505');
+      topFade.addColorStop(1, 'rgba(5,5,5,0)');
+
+      fadeCache.ctx = ctx;
+      fadeCache.drawW = drawW;
+      fadeCache.drawH = drawH;
+      fadeCache.gradients = { leftFade, rightFade, bottomFade, topFade };
+    }
+    const { leftFade, rightFade, bottomFade, topFade } = fadeCache.gradients;
+
+    ctx.save();
+    ctx.translate(x, y);
     ctx.fillStyle = leftFade;
-    ctx.fillRect(x - 2, y, 302, drawH);
-
-    const rightFade = ctx.createLinearGradient(x + drawW - 300, 0, x + drawW, 0);
-    rightFade.addColorStop(0, 'rgba(5,5,5,0)');
-    rightFade.addColorStop(1, '#050505');
+    ctx.fillRect(-2, 0, 302, drawH);
     ctx.fillStyle = rightFade;
-    ctx.fillRect(x + drawW - 300, y, 302, drawH);
-
-    const bottomFade = ctx.createLinearGradient(0, y + drawH - 200, 0, y + drawH);
-    bottomFade.addColorStop(0, 'rgba(5,5,5,0)');
-    bottomFade.addColorStop(1, '#050505');
+    ctx.fillRect(drawW - 300, 0, 302, drawH);
     ctx.fillStyle = bottomFade;
-    ctx.fillRect(x, y + drawH - 200, drawW, 202);
-
-    const topFade = ctx.createLinearGradient(0, y, 0, y + 80);
-    topFade.addColorStop(0, '#050505');
-    topFade.addColorStop(1, 'rgba(5,5,5,0)');
+    ctx.fillRect(0, drawH - 200, drawW, 202);
     ctx.fillStyle = topFade;
-    ctx.fillRect(x, y - 2, drawW, 82);
+    ctx.fillRect(0, -2, drawW, 82);
+    ctx.restore();
   }, [findNearestLoadedInto]);
 
   // Handle Resize
@@ -296,7 +315,7 @@ export default function ScrollCanvas({
     const handleResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR);
       dimensionsRef.current = { w, h, dpr };
 
       const canvas = canvasRef.current;
@@ -531,14 +550,14 @@ export default function ScrollCanvas({
     };
   }, [containerSelector, onProgressUpdate, markUserScrolling]);
 
-  // Single Unified 120Hz RAF Render Loop (Zero Glitch / Zero Double-Draw)
+  // Single unified render loop on gsap.ticker: runs in the same tick as Lenis (registered
+  // earlier), so every draw sees this frame's scroll position instead of last frame's
   useEffect(() => {
-    let animId;
     let lastDrawnFrame = -1;
     let lastDrawnOffset = -99999;
     let lastTargetProgress = 0;
 
-    const render = () => {
+    const render = (time, deltaTime) => {
       // Determine active target frame
       let targetProgress = 0;
       if (targetProgressRef && typeof targetProgressRef.current === 'number') {
@@ -559,8 +578,11 @@ export default function ScrollCanvas({
       const frameDelta = exactTargetFrame - currentFrameRef.current;
       const offsetDelta = targetOffset - currentOffsetXRef.current;
 
-      currentFrameRef.current += frameDelta * 0.18;
-      currentOffsetXRef.current += offsetDelta * 0.18;
+      // Frame-rate independent exponential smoothing (same feel on 60/120/144 Hz displays)
+      const dt = Math.min(deltaTime || 16.7, 100) / 1000;
+      const ease = 1 - Math.exp(-DAMPING_PER_SECOND * dt);
+      currentFrameRef.current += frameDelta * ease;
+      currentOffsetXRef.current += offsetDelta * ease;
 
       // Draw only when values move
       if (
@@ -585,11 +607,10 @@ export default function ScrollCanvas({
         }
       }
 
-      animId = requestAnimationFrame(render);
     };
 
-    animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
+    gsap.ticker.add(render);
+    return () => gsap.ticker.remove(render);
   }, [targetProgressRef, drawFrame, prioritizeAtlas]);
 
   return (
@@ -607,4 +628,4 @@ export default function ScrollCanvas({
       }}
     />
   );
-}
+}

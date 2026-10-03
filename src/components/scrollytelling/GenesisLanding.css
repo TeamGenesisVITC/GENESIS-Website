@@ -1970,6 +1970,12 @@ html.lenis, html.lenis body {
   filter: brightness(0.72) saturate(0.85) contrast(1.05);
 }
 
+/* Group photo: blank wall fills the top third, so anchor the crop on the people */
+.media-photo-img--team {
+  object-position: center 72%;
+  filter: brightness(0.85) saturate(0.9) contrast(1.05);
+}
+
 .media-photo-overlay {
   position: absolute;
   inset: 0;
@@ -2057,13 +2063,36 @@ html.lenis, html.lenis body {
   margin-right: 4px;
 }
 
-/* ── Slide 1: Leadership 3×2 Grid ── */
+/* ── Slide 1: Leadership 4-up Grid + Co-Founders Row ── */
 .leadership-cards-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   flex-grow: 1;
   align-content: stretch;
+}
+
+.leadership-footer {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.management-block .roster-chips-grid {
+  grid-template-columns: 1fr;
+}
+
+.management-block .engineer-chip {
+  cursor: default;
+}
+
+.cofounders-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
 }
 
 .lead-tile {
@@ -2121,6 +2150,72 @@ html.lenis, html.lenis body {
   color: #A1A1AA;
   margin: 0;
   font-style: italic;
+}
+
+.tile-link {
+  align-self: flex-start;
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #C084FC;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(192, 132, 252, 0.35);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.tile-link:hover {
+  color: #E9D5FF;
+  border-color: #E9D5FF;
+}
+
+/* ── Slide 5: Hall of Legacy 4×2 Grid ── */
+.legacy-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  flex-grow: 1;
+  align-content: stretch;
+}
+
+.lead-tile--legacy {
+  border-color: rgba(234, 179, 8, 0.22);
+}
+
+.lead-tile--legacy:hover {
+  background: rgba(234, 179, 8, 0.06);
+  border-color: rgba(234, 179, 8, 0.45);
+}
+
+.lead-tile--legacy .tile-role {
+  color: #FACC15;
+}
+
+.lead-tile--legacy .tile-badge {
+  color: #FACC15;
+  background: rgba(234, 179, 8, 0.1);
+}
+
+/* ── Slide 6: Hall of Legacy Members ── */
+.legacy-members-groups {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 24px;
+  flex-grow: 1;
+}
+
+.legacy-members-groups .roster-chips-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  max-height: 260px;
+}
+
+.engineer-chip--legacy .chip-avatar {
+  background: rgba(234, 179, 8, 0.15);
+  color: #FACC15;
+}
+
+.engineer-chip--legacy:hover {
+  background: rgba(234, 179, 8, 0.08);
+  border-color: rgba(234, 179, 8, 0.4);
 }
 
 /* ── Slides 2-4: Department Split ── */
@@ -2303,6 +2398,16 @@ html.lenis, html.lenis body {
   }
   .leadership-cards-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  .cofounders-grid {
+    grid-template-columns: 1fr;
+  }
+  .legacy-cards-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .leadership-footer,
+  .legacy-members-groups {
+    grid-template-columns: 1fr;
   }
   .dept-content-split {
     grid-template-columns: 1fr;

@@ -1,45 +1,53 @@
-// Electrical Department Members
+// Electrical & Control Systems Department Members
 export const electricalMembers = [
   {
     id: 1,
-    name: "Aditya Desai",
-   
-    quote: "Grateful to grow and learn work Genesis"
+    name: "Ishan Dutta",
+    quote: " "
   },
   {
     id: 2,
-    name: "Kaaviya BS",
-    
-    quote: "I'm here to learn, contribute and grow with the team. "
+    name: "Subhikshaa Pillai",
+    quote: " "
   },
   {
     id: 3,
-    name: "Pavithra Hariharan",
-    
-    quote: "When nothing makes sense, go with the flow. It will work out … probably. "
+    name: "Chris Cambria C",
+    quote: "Hardwork>Talent. Every single time."
   },
   {
     id: 4,
-    name: "Vamsi Sharma",
-    
-    quote: "Genesis is where my curiosity found its current."
+    name: "Kaaviya BS",
+    quote: "I'm here to learn, contribute and grow with the team. "
   },
   {
     id: 5,
-    name: "Vanshika Maniya",
-    
-    quote: "Turning ideas into circuits and circuits into motion."
+    name: "Raghav Sharma",
+    quote: "I build the intelligence that makes machines feel alive."
   },
   {
     id: 6,
-    name: "Vedanti Sinha",
-    
-    quote: "From static schematics to the kinetic pulse of artificial life."
+    name: "Vedit Patil",
+    quote: "if it ain't broke, dont fix it."
   },
   {
     id: 7,
-    name: "Vedit Patil",
-    
-    quote: "if it ain't broke, dont fix it."
+    name: "Anwitha R",
+    quote: " "
+  },
+  {
+    id: 8,
+    name: "Aditya Desai",
+    quote: "Grateful to grow and learn work Genesis"
+  },
+  {
+    id: 9,
+    name: "M P Indresh",
+    quote: " "
+  },
+  {
+    id: 10,
+    name: "Debadrita Munshi",
+    quote: " "
   }
 ];

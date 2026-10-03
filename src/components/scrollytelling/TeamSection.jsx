@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { leadsMembers } from '../../data/leadsMembers';
+import { leadsMembers, coFounders, legacyLeads, legacyMembers } from '../../data/leadsMembers';
+import { managementMembers } from '../../data/managementMembers';
 import { mechanicalMembers } from '../../data/mechanicalMembers';
 import { electricalMembers } from '../../data/electricalMembers';
 import { softwareMembers } from '../../data/softwareMembers';
@@ -41,18 +42,22 @@ export default function TeamSection() {
   }, []);
 
   // Filter department leads
-  const executiveLeads = leadsMembers.filter((m) =>
-    ['Captain', 'Vice Captain', 'Head of Operations', 'Internal Strategy Lead', 'Project Management Lead', 'Treasurer'].includes(m.role)
-  );
-  const mechLeads = leadsMembers.filter((m) => m.role === 'Mechanical Lead');
-  const elecLeads = leadsMembers.filter((m) => m.role === 'Electrical Lead');
-  const softLeads = leadsMembers.filter((m) => m.role === 'Software Lead');
+  const executiveRoles = ['Captain', 'Vice Captain', 'Head of Operations', 'Internal Strategy Lead'];
+  const executiveLeads = leadsMembers
+    .filter((m) => executiveRoles.includes(m.role))
+    .sort((a, b) => executiveRoles.indexOf(a.role) - executiveRoles.indexOf(b.role));
+  const mechLeads = leadsMembers.filter((m) => m.role === 'Mechanical and Design Lead');
+  const elecLeads = leadsMembers.filter((m) => m.role === 'Electrical and Control Systems Lead');
+  const softLeads = leadsMembers.filter((m) => m.role === 'Software and AI Lead');
+
+  // Group legacy members by department for the Hall of Legacy roster
+  const legacyDepartments = [...new Set(legacyMembers.map((m) => m.department))];
 
   return (
     <div id="team-section" className="team-hscroll-wrapper" ref={sectionRef}>
       <div className="team-hscroll-stage">
 
-        {/* ── Horizontal Track (5 Slides × 100vw) ── */}
+        {/* ── Horizontal Track (7 Slides × 100vw) ── */}
         <div className="team-hscroll-track" ref={trackRef}>
 
           {/* ══════════════════════════════════════════════════════════
@@ -92,17 +97,19 @@ export default function TeamSection() {
                 </div>
               </div>
 
-              {/* Right Column: Framed Techfest Photo */}
+              {/* Right Column: Framed Full-Team Photo */}
               <div className="overview-media-pane">
                 <div className="media-photo-frame">
                   <img
-                    src="/team-techfest.jpg"
-                    alt="Team Genesis at IIT Bombay Techfest"
-                    className="media-photo-img"
+                    src="/team-genesis-all-55-members.webp"
+                    srcSet="/team-genesis-all-55-members-t.webp 640w, /team-genesis-all-55-members.webp 800w"
+                    sizes="(max-width: 1024px) 100vw, 560px"
+                    alt="The full Team Genesis roster at VIT Chennai"
+                    className="media-photo-img media-photo-img--team"
                   />
                   <div className="media-photo-overlay" />
                   <div className="media-photo-caption font-mono">
-                    <span>TEAM GENESIS · IIT BOMBAY TECHFEST VENTURE</span>
+                    <span>TEAM GENESIS · FULL ROSTER · VIT CHENNAI</span>
                   </div>
                 </div>
               </div>
@@ -141,8 +148,47 @@ export default function TeamSection() {
                     <p className="tile-quote font-satoshi">
                       {lead.quote && lead.quote.trim() ? `"${lead.quote.trim()}"` : 'Directing platform integration and cross-domain engineering sprints.'}
                     </p>
+                    {lead.link && (
+                      <a
+                        className="tile-link font-mono"
+                        href={lead.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {lead.link.replace(/^https?:\/\//, '')} ↗
+                      </a>
+                    )}
                   </div>
                 ))}
+              </div>
+
+              <div className="leadership-footer">
+                <div className="cofounders-block">
+                  <div className="sidebar-section-title font-mono">CO-FOUNDERS · EST. 2024</div>
+                  <div className="cofounders-grid">
+                    {coFounders.map((founder) => (
+                      <div key={founder.id} className="lead-tile lead-tile--compact">
+                        <div className="tile-top">
+                          <span className="tile-role font-mono">{founder.role}</span>
+                          <span className="tile-badge font-mono">CO-FOUNDER</span>
+                        </div>
+                        <h4 className="tile-name font-cabinet">{founder.name}</h4>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="management-block">
+                  <div className="sidebar-section-title font-mono">MANAGEMENT [{managementMembers.length}]</div>
+                  <div className="roster-chips-grid">
+                    {managementMembers.map((member) => (
+                      <div key={member.id} className="engineer-chip">
+                        <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
+                        <span className="chip-name font-satoshi">{member.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -398,6 +444,102 @@ export default function TeamSection() {
                     )}
                   </div>
                 </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════
+             SLIDE 5: 05 // HALL OF LEGACY · GENERATION 01
+             ══════════════════════════════════════════════════════════ */}
+          <div className="team-hslide team-hslide--legacy">
+            <div className="hslide-inner">
+
+              <div className="slide-header-bar">
+                <div className="header-meta">
+                  <span className="slide-tag font-mono">05 // LEGACY ROSTER · GENERATION 01</span>
+                  <h3 className="slide-heading font-cabinet">Hall of Legacy</h3>
+                  <p className="slide-lead-copy font-satoshi">
+                    The leads who built the first Genesis. Every joint we machine, every board we spin, and every line we ship today runs on groundwork they laid.
+                  </p>
+                </div>
+                <div className="header-badge-group font-mono">
+                  <div className="hbadge"><span>GENERATION:</span> 01</div>
+                  <div className="hbadge"><span>STATUS:</span> HONOURED</div>
+                </div>
+              </div>
+
+              <div className="legacy-cards-grid">
+                {legacyLeads.map((lead) => (
+                  <div key={lead.id} className="lead-tile lead-tile--legacy">
+                    <div className="tile-top">
+                      <span className="tile-role font-mono">Former {lead.role}</span>
+                      <span className="tile-badge font-mono">GEN 01</span>
+                    </div>
+                    <h4 className="tile-name font-cabinet">{lead.name}</h4>
+                    {lead.quote && lead.quote.trim() && (
+                      <p className="tile-quote font-satoshi">"{lead.quote.trim()}"</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════
+             SLIDE 6: 06 // HALL OF LEGACY · MEMBERS
+             ══════════════════════════════════════════════════════════ */}
+          <div className="team-hslide team-hslide--legacy-members">
+            <div className="hslide-inner">
+
+              <div className="slide-header-bar">
+                <div className="header-meta">
+                  <span className="slide-tag font-mono">06 // LEGACY ROSTER · GENERATION 01 MEMBERS</span>
+                  <h3 className="slide-heading font-cabinet">The Engineers Who Came Before</h3>
+                  <p className="slide-lead-copy font-satoshi">
+                    Builders, solderers, and coders who poured their hours into the first platforms. Their names stay on the machine.
+                  </p>
+                </div>
+                <div className="header-badge-group font-mono">
+                  <div className="hbadge"><span>ALUMNI:</span> {legacyMembers.length}</div>
+                  <div className="hbadge"><span>STATUS:</span> HONOURED</div>
+                </div>
+              </div>
+
+              <div className="legacy-members-groups">
+                {legacyDepartments.map((dept) => (
+                  <div key={dept} className="legacy-dept-group">
+                    <div className="sidebar-section-title font-mono">
+                      {dept} [{legacyMembers.filter((m) => m.department === dept).length}]
+                    </div>
+                    <div className="roster-chips-grid">
+                      {legacyMembers.filter((m) => m.department === dept).map((member) => (
+                        <div
+                          key={member.id}
+                          className="engineer-chip engineer-chip--legacy"
+                          onMouseEnter={() => setHoveredMember(member)}
+                          onMouseLeave={() => setHoveredMember(null)}
+                        >
+                          <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
+                          <span className="chip-name font-satoshi">{member.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="roster-quote-callout font-satoshi">
+                {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                  <div className="live-quote">
+                    <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                  </div>
+                ) : (
+                  <span className="idle-quote font-mono">
+                    HOVER OVER A NAME TO READ THEIR MOTTO
+                  </span>
+                )}
               </div>
 
             </div>

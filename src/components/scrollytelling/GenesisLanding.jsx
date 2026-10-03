@@ -102,7 +102,8 @@ export default function GenesisLanding() {
     const tickerCallback = (time) => {
       lenis.raf(time * 1000);
     };
-    gsap.ticker.add(tickerCallback);
+    // Prioritized so Lenis updates scroll before ScrollCanvas renders in the same tick
+    gsap.ticker.add(tickerCallback, false, true);
     gsap.ticker.lagSmoothing(0);
     lenis.on('scroll', ScrollTrigger.update);
 
