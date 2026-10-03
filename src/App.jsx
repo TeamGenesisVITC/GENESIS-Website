@@ -6,11 +6,18 @@ import Leads from './pages/Leads';
 import Electrical from './pages/Electrical';
 import Mechanical from './pages/Mechanical';
 import SoftwareAI from './pages/SoftwareAI';
+import { usePageMeta } from './utils/pageMeta';
 import './App.css';
+
+function PageMeta() {
+  usePageMeta();
+  return null;
+}
 
 function App() {
   return (
     <BrowserRouter>
+      <PageMeta />
       <Routes>
         <Route path="/" element={<GenesisLanding />} />
         <Route path="/robo-hi" element={<Robohi />} />

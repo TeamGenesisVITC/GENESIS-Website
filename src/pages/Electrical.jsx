@@ -15,7 +15,7 @@ function Electrical() {
 
       {/* Background Image */}
       <div className="hero-background">
-        <img src={electricalBg} alt="Electrical Background" />
+        <img src={electricalBg} alt="" />
       </div>
 
       {/* Back Button */}

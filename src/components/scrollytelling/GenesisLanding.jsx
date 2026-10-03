@@ -669,9 +669,9 @@ export default function GenesisLanding() {
 
             <div className="footer-nav-col">
               <span className="footer-col-title">Contact</span>
-              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
-              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
+              <a href="https://www.linkedin.com/company/genesisvitc" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
+              <a href="https://github.com/TeamGenesisVITC" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+              <a href="https://www.instagram.com/genesis.vitc" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
               <a href="mailto:genesis.vitc@gmail.com">genesis.vitc@gmail.com</a>
             </div>
           </div>

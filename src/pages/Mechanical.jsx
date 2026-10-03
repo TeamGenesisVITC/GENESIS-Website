@@ -15,7 +15,7 @@ function Mechanical() {
 
       {/* Background Image */}
       <div className="hero-background">
-        <img src={mechanicalBg} alt="Mechanical Background" />
+        <img src={mechanicalBg} alt="" />
       </div>
 
       {/* Back to original */}

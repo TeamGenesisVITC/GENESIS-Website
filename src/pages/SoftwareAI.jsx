@@ -15,7 +15,7 @@ function SoftwareAI() {
 
       {/* Background Image */}
       <div className="hero-background">
-        <img src={aiBg} alt="Software AI Background" />
+        <img src={aiBg} alt="" />
       </div>
 
       {/* Back Button */}

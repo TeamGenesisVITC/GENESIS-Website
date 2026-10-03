@@ -15,7 +15,7 @@ function Leads() {
 
       {/* Background Image */}
       <div className="hero-background">
-        <img src={leadsBg} alt="Leads Background" />
+        <img src={leadsBg} alt="" />
       </div>
 
       {/* Back Button */}
