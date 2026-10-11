@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import manifest from './atlas-manifest.json';
@@ -84,7 +84,7 @@ async function decodeAtlas(blob) {
     try {
       const bitmap = await createImageBitmap(blob);
       return { source: bitmap, release: () => bitmap.close() };
-    } catch (e) {
+    } catch {
       // Fall through to the <img> path (e.g. engines that cannot decode this type into a bitmap).
     }
   }
@@ -199,10 +199,13 @@ export default function ScrollCanvas({
   // Latest callbacks, so the loader effect runs once even if the parent passes inline functions.
   const onLoadProgressRef = useRef(onLoadProgress);
   const onSiteReadyRef = useRef(onSiteReady);
-  onLoadProgressRef.current = onLoadProgress;
-  onSiteReadyRef.current = onSiteReady;
   const reducedMotionRef = useRef(reducedMotion);
-  reducedMotionRef.current = reducedMotion;
+  // Sync after commit rather than during render; layout effects run before the ticker's next draw.
+  useLayoutEffect(() => {
+    onLoadProgressRef.current = onLoadProgress;
+    onSiteReadyRef.current = onSiteReady;
+    reducedMotionRef.current = reducedMotion;
+  });
 
   const currentFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
@@ -376,6 +379,8 @@ export default function ScrollCanvas({
       if (readySignalled || cancelled) return;
       readySignalled = true;
       reportProgress(100);
+      // Lets the perf harness (scripts/perf/ux.mjs) time "usable" the same way on every build.
+      if (typeof performance !== 'undefined' && performance.mark) performance.mark('genesis:ready');
       if (STATS) {
         STATS.readyAt = performance.now();
         const entries = performance.getEntriesByType('resource').filter((e) => e.name.includes(ATLAS_BASE_PATH));

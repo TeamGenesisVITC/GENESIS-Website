@@ -32,6 +32,7 @@ export default defineConfig([
     rules: {
       // The automatic JSX runtime doesn't need `import React`, but it is harmless.
       'no-unused-vars': ['error', { varsIgnorePattern: '^React$' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
 
@@ -50,6 +51,8 @@ export default defineConfig([
     files: ['*.{js,mjs}', 'scripts/**/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: { sourceType: 'module', globals: globals.node },
+    // Best-effort cleanup (closing sockets, killing Chrome) intentionally ignores errors.
+    rules: { 'no-empty': ['error', { allowEmptyCatch: true }] },
   },
   {
     files: ['scripts/**/*.js'],

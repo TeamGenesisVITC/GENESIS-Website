@@ -12,7 +12,13 @@
     "lint": "eslint .",
     "build:atlases": "node scripts/generate-atlases.js --scale=0.5",
     "cf-typegen": "wrangler types",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "perf:measure": "node scripts/perf/measure.mjs",
+    "perf:check": "node scripts/perf/envelope.mjs",
+    "perf:ux": "node scripts/perf/ux.mjs",
+    "perf:preview": "node scripts/perf/linkpreview.mjs",
+    "perf:compare": "node scripts/perf/compare.mjs",
+    "serve": "node scripts/serve.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
