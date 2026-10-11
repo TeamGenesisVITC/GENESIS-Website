@@ -1,12 +1,88 @@
 {
+  "version": 2,
   "totalFrames": 250,
-  "frameWidth": 1920,
-  "frameHeight": 1080,
-  "columns": 2,
-  "rows": 3,
-  "framesPerAtlas": 6,
+  "sourceWidth": 1920,
+  "sourceHeight": 1080,
+  "scale": 0.5,
+  "frameWidth": 960,
+  "frameHeight": 540,
+  "columns": 4,
+  "rows": 7,
+  "framesPerAtlas": 28,
   "atlasWidth": 3840,
-  "atlasHeight": 3240,
-  "totalAtlases": 42,
-  "generatedAt": "2026-08-30T19:19:07.002Z"
+  "atlasHeight": 3780,
+  "totalAtlases": 9,
+  "totalBytes": 4867098,
+  "format": "webp",
+  "encoder": {
+    "quality": 80,
+    "effort": 6,
+    "smartSubsample": true
+  },
+  "basePath": "/frame-atlases/",
+  "atlases": [
+    {
+      "file": "atlas-0.2085154c.webp",
+      "bytes": 704870,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-1.4e757f42.webp",
+      "bytes": 608522,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-2.2fe17615.webp",
+      "bytes": 616850,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-3.28332dd2.webp",
+      "bytes": 578886,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-4.5db9163c.webp",
+      "bytes": 612398,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-5.56f89d33.webp",
+      "bytes": 603492,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-6.a7fc8c46.webp",
+      "bytes": 371362,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-7.74237826.webp",
+      "bytes": 453822,
+      "frames": 28,
+      "width": 3840,
+      "height": 3780
+    },
+    {
+      "file": "atlas-8.0d16bf62.webp",
+      "bytes": 316896,
+      "frames": 26,
+      "width": 3840,
+      "height": 3780
+    }
+  ]
 }
