@@ -1,0 +1,12 @@
+{
+  "totalFrames": 250,
+  "frameWidth": 1920,
+  "frameHeight": 1080,
+  "columns": 2,
+  "rows": 3,
+  "framesPerAtlas": 6,
+  "atlasWidth": 3840,
+  "atlasHeight": 3240,
+  "totalAtlases": 42,
+  "generatedAt": "2026-08-30T19:19:07.002Z"
+}

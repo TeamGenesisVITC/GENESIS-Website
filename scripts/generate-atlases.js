@@ -1,290 +1,315 @@
+#!/usr/bin/env node
+/**
+ * Frame-atlas generator for the landing page's scroll-scrubbed sequence (ScrollCanvas.jsx).
+ *
+ * Packs the source frames (public/frames/frame_XXXX.webp) into sprite-sheet atlases that the
+ * canvas scrubs through. Output:
+ *   public/frame-atlases/atlas-<i>.<hash8>.webp      content-hashed, safe to cache immutably
+ *   public/frame-atlases/manifest.json               full manifest (+ selected source frames)
+ *   src/components/scrollytelling/atlas-manifest.json runtime manifest bundled into the app
+ *
+ * Usage:
+ *   node scripts/generate-atlases.js [--scale=0.5] [--quality=80] [--effort=6] [--concurrency=2]
+ *
+ *   --scale    linear scale of each frame relative to the source (0 < scale <= 1, default 1).
+ *              The site ships scale=0.5 (960x540 frames, 9 atlases): the whole sequence then
+ *              fits in ~0.5 GB of decoded bitmaps and can stay fully resident while scrubbing.
+ *   --quality  WebP quality (default 80), --effort WebP effort 0-6 (default 6).
+ *
+ * The output directory is cleaned of stale atlas-*.webp files only. Archived atlas sets live in
+ * media/archive/ and are never touched: the script refuses to write anywhere under it.
+ */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const sharp = require('sharp');
 
-const FRAMES_DIR = path.join(__dirname, '..', 'public', 'frames');
-const OUTPUT_DIR = path.join(__dirname, '..', 'public', 'frame-atlases');
-const MAX_TEXTURE_SIZE = 4096;
-const WEBP_QUALITY = 90;
-const CONCURRENCY_LIMIT = 4;
+const ROOT = path.join(__dirname, '..');
+const FRAMES_DIR = path.join(ROOT, 'public', 'frames');
+const OUTPUT_DIR = path.join(ROOT, 'public', 'frame-atlases');
+const SRC_MANIFEST_PATH = path.join(ROOT, 'src', 'components', 'scrollytelling', 'atlas-manifest.json');
+const ARCHIVE_DIR = path.join(ROOT, 'media', 'archive');
+const PUBLIC_BASE_PATH = '/frame-atlases/';
 
-async function generateAtlases() {
-  console.log('--- Starting Atlas Generation ---');
+const MAX_TEXTURE_SIZE = 4096; // safe max texture edge on mobile GPUs
+const BACKGROUND = { r: 5, g: 5, b: 5 }; // page background #050505
+const HASH_LENGTH = 8;
+const STALE_ATLAS_RE = /^atlas-\d+(\.[0-9a-f]+)?\.webp$/i;
 
-  if (!fs.existsSync(FRAMES_DIR)) {
-    console.error(`Error: Source frames directory not found at ${FRAMES_DIR}`);
-    process.exit(1);
+// Adaptive frame selection: keep the TARGET_BUDGET most perceptually distinct frames.
+const TARGET_BUDGET = 250;
+const THUMB_SIZE = 64;
+
+const DEFAULTS = { scale: 1, quality: 80, effort: 6, concurrency: 2 };
+
+function parseArgs(argv) {
+  const opts = { ...DEFAULTS };
+  for (const arg of argv) {
+    const m = /^--([a-z-]+)=(.+)$/.exec(arg);
+    if (!m || !(m[1] in DEFAULTS)) {
+      throw new Error(`Unknown argument "${arg}". Expected --scale=, --quality=, --effort= or --concurrency=.`);
+    }
+    opts[m[1]] = Number(m[2]);
   }
+  if (!(opts.scale > 0 && opts.scale <= 1)) throw new Error(`--scale must be in (0, 1], got ${opts.scale}`);
+  if (!(opts.quality >= 1 && opts.quality <= 100)) throw new Error(`--quality must be in [1, 100], got ${opts.quality}`);
+  if (!(Number.isInteger(opts.effort) && opts.effort >= 0 && opts.effort <= 6)) throw new Error(`--effort must be an integer 0-6, got ${opts.effort}`);
+  if (!(Number.isInteger(opts.concurrency) && opts.concurrency >= 1)) throw new Error(`--concurrency must be a positive integer`);
+  return opts;
+}
 
-  // 1. Read and sort all frame files (specifically frame_XXXX.webp sequence)
-  const rawFrameFiles = fs
+function assertOutsideArchive(dir) {
+  const rel = path.relative(ARCHIVE_DIR, path.resolve(dir));
+  if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+    throw new Error(`Refusing to write into the archive folder: ${dir}`);
+  }
+}
+
+function listSourceFrames() {
+  if (!fs.existsSync(FRAMES_DIR)) throw new Error(`Source frames directory not found at ${FRAMES_DIR}`);
+  const files = fs
     .readdirSync(FRAMES_DIR)
     .filter((file) => /^frame_\d+\.webp$/i.test(file))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  if (files.length === 0) throw new Error(`No frame_XXXX.webp images found in ${FRAMES_DIR}`);
+  return files;
+}
 
-  const rawTotalFrames = rawFrameFiles.length;
-  if (rawTotalFrames === 0) {
-    console.error('Error: No frame images found in', FRAMES_DIR);
-    process.exit(1);
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
-  console.log(`Found ${rawTotalFrames} raw source frames in working pool.`);
+/**
+ * Greedy perceptual-difference decimation: repeatedly drop the interior frame whose removal
+ * introduces the smallest jump (mean abs difference of 64x64 grayscale thumbnails between its
+ * neighbours) until TARGET_BUDGET frames remain. First and last frames are always kept.
+ * Returns the indices (into `files`) of the surviving frames, in order.
+ */
+async function selectFrames(files) {
+  const thumbs = await mapLimit(files, 32, (f) =>
+    sharp(path.join(FRAMES_DIR, f)).resize(THUMB_SIZE, THUMB_SIZE, { fit: 'fill' }).grayscale().raw().toBuffer()
+  );
+  const n = files.length;
+  if (n <= TARGET_BUDGET) return files.map((_, i) => i);
 
-  // 1b. Adaptive Perceptual-Difference Frame Selection
-  console.log('Downscaling frames to 64x64 grayscale buffers for perceptual diffing...');
-  const t0 = Date.now();
-  const thumbs = [];
-  const BATCH_SIZE = 32;
-
-  for (let i = 0; i < rawTotalFrames; i += BATCH_SIZE) {
-    const batch = rawFrameFiles.slice(i, i + BATCH_SIZE);
-    const batchBuffers = await Promise.all(
-      batch.map((f) =>
-        sharp(path.join(FRAMES_DIR, f))
-          .resize(64, 64, { fit: 'fill' })
-          .grayscale()
-          .raw()
-          .toBuffer()
-      )
-    );
-    thumbs.push(...batchBuffers);
-  }
-  console.log(`Perceptual buffers generated in ${((Date.now() - t0) / 1000).toFixed(2)}s`);
-
-  // Mean absolute pixel difference between frame i and frame j (0 to 255)
-  function calcDifference(i, j) {
-    const bufA = thumbs[i];
-    const bufB = thumbs[j];
+  const diff = (i, j) => {
+    const a = thumbs[i];
+    const b = thumbs[j];
     let sum = 0;
-    const len = bufA.length;
-    for (let k = 0; k < len; k++) {
-      sum += Math.abs(bufA[k] - bufB[k]);
-    }
-    return sum / len;
+    for (let k = 0; k < a.length; k++) sum += Math.abs(a[k] - b[k]);
+    return sum / a.length;
+  };
+
+  const prev = new Int32Array(n);
+  const next = new Int32Array(n);
+  const cost = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    prev[i] = i - 1;
+    next[i] = i + 1 < n ? i + 1 : -1;
   }
+  const updateCost = (i) => {
+    cost[i] = prev[i] < 0 || next[i] < 0 ? Infinity : diff(prev[i], next[i]);
+  };
+  for (let i = 0; i < n; i++) updateCost(i);
 
-  // Doubly linked list for surviving frames
-  class FrameNode {
-    constructor(idx) {
-      this.idx = idx;
-      this.prev = null;
-      this.next = null;
-      this.removalCost = Infinity;
-    }
-  }
-
-  const nodes = [];
-  for (let i = 0; i < rawTotalFrames; i++) {
-    nodes.push(new FrameNode(i));
-  }
-  for (let i = 0; i < rawTotalFrames; i++) {
-    if (i > 0) nodes[i].prev = nodes[i - 1];
-    if (i < rawTotalFrames - 1) nodes[i].next = nodes[i + 1];
-  }
-
-  function computeCost(node) {
-    if (!node.prev || !node.next) {
-      node.removalCost = Infinity;
-    } else {
-      // Perceptual jump introduced if node is removed
-      node.removalCost = calcDifference(node.prev.idx, node.next.idx);
-    }
-  }
-
-  for (let i = 1; i < rawTotalFrames - 1; i++) {
-    computeCost(nodes[i]);
-  }
-
-  // Target budget ceiling: 250 frames
-  const TARGET_BUDGET = 250;
-  const MIN_REMOVAL_THRESHOLD = 5.0; // Stop if removing a frame introduces jump > threshold
-
-  let survivingCount = rawTotalFrames;
-
-  while (survivingCount > TARGET_BUDGET) {
-    let minNode = null;
-    let minCost = Infinity;
-
-    let curr = nodes[0].next;
-    while (curr && curr.next) {
-      if (curr.removalCost < minCost) {
-        minCost = curr.removalCost;
-        minNode = curr;
+  let surviving = n;
+  while (surviving > TARGET_BUDGET) {
+    let best = -1;
+    let bestCost = Infinity;
+    for (let i = next[0]; i !== -1 && next[i] !== -1; i = next[i]) {
+      if (cost[i] < bestCost) {
+        bestCost = cost[i];
+        best = i;
       }
-      curr = curr.next;
     }
-
-    if (!minNode) break;
-
-    // Stop if remaining candidate removal costs exceed threshold when budget reached
-    if (minCost > MIN_REMOVAL_THRESHOLD && survivingCount <= TARGET_BUDGET) {
-      break;
-    }
-
-    // Remove minNode (always preserving first node[0] and last node[rawTotalFrames - 1])
-    const p = minNode.prev;
-    const n = minNode.next;
-    p.next = n;
-    n.prev = p;
-    survivingCount--;
-
-    if (p.prev) computeCost(p);
-    if (n.next) computeCost(n);
+    if (best < 0) break;
+    const p = prev[best];
+    const q = next[best];
+    next[p] = q;
+    prev[q] = p;
+    surviving--;
+    updateCost(p);
+    updateCost(q);
   }
 
-  // Extract surviving frame files
-  const survivingIndices = [];
-  let currNode = nodes[0];
-  while (currNode) {
-    survivingIndices.push(currNode.idx);
-    currNode = currNode.next;
-  }
+  const kept = [];
+  for (let i = 0; i !== -1; i = next[i]) kept.push(i);
+  return kept;
+}
 
-  const frameFiles = survivingIndices.map((idx) => rawFrameFiles[idx]);
-  const totalFrames = frameFiles.length;
-
-  console.log(`\nAdaptive selection complete: Selected ${totalFrames} frames from ${rawTotalFrames} raw frames.`);
-  console.log(`Preserved start frame: index ${survivingIndices[0]} (${frameFiles[0]})`);
-  console.log(`Preserved end frame: index ${survivingIndices[survivingIndices.length - 1]} (${frameFiles[frameFiles.length - 1]})`);
-
-  // Density mapping across original sequence
-  const segmentSize = 100;
-  console.log('\n--- Frame Density Distribution Across Original Sequence ---');
-  for (let start = 0; start < rawTotalFrames; start += segmentSize) {
-    const end = Math.min(start + segmentSize - 1, rawTotalFrames - 1);
-    const countInSegment = survivingIndices.filter((idx) => idx >= start && idx <= end).length;
-    const totalInSegment = end - start + 1;
-    const pct = ((countInSegment / totalInSegment) * 100).toFixed(1);
-    const density = countInSegment > 32 ? 'HIGH (Fast Motion)' : countInSegment > 20 ? 'MEDIUM' : 'LOW (Slow/Static Motion)';
-    console.log(`- frames ${start.toString().padStart(3, '0')}–${end.toString().padStart(3, '0')}: ${countInSegment.toString().padStart(2, ' ')} frames kept (${pct.padStart(5, ' ')}%) [${density}]`);
-  }
-  console.log('----------------------------------------------------------\n');
-
-  console.log(`Reading dimensions from first frame (${frameFiles[0]})...`);
-
-  // 2. Determine frame dimensions automatically from first frame
-  const firstFramePath = path.join(FRAMES_DIR, frameFiles[0]);
-  const firstMetadata = await sharp(firstFramePath).metadata();
-  const frameWidth = firstMetadata.width;
-  const frameHeight = firstMetadata.height;
-
-  if (!frameWidth || !frameHeight) {
-    console.error('Error: Could not determine frame dimensions.');
-    process.exit(1);
-  }
-
-  console.log(`Frame dimensions: ${frameWidth}x${frameHeight}px`);
-
-  // 3. Compute optimal grid size under 4096x4096px
+/** Atlas grid for a given frame size, bounded by MAX_TEXTURE_SIZE on both edges. */
+function computeGeometry(frameWidth, frameHeight, totalFrames) {
   const columns = Math.max(1, Math.floor(MAX_TEXTURE_SIZE / frameWidth));
   const rows = Math.max(1, Math.floor(MAX_TEXTURE_SIZE / frameHeight));
   const framesPerAtlas = columns * rows;
-  const atlasWidth = columns * frameWidth;
-  const atlasHeight = rows * frameHeight;
-  const totalAtlases = Math.ceil(totalFrames / framesPerAtlas);
-
-  console.log(`Atlas grid configuration:`);
-  console.log(`- Grid: ${columns} columns x ${rows} rows`);
-  console.log(`- Frames per atlas: ${framesPerAtlas}`);
-  console.log(`- Atlas dimensions: ${atlasWidth}x${atlasHeight}px (Max safe texture: ${MAX_TEXTURE_SIZE}x${MAX_TEXTURE_SIZE}px)`);
-  console.log(`- Total atlases to generate: ${totalAtlases}`);
-
-  // Ensure output directory exists and clean out stale atlas files
-  if (fs.existsSync(OUTPUT_DIR)) {
-    const existing = fs.readdirSync(OUTPUT_DIR);
-    for (const f of existing) {
-      if (/^atlas-.*\.webp$/i.test(f) || f === 'manifest.json') {
-        fs.unlinkSync(path.join(OUTPUT_DIR, f));
-      }
-    }
-  } else {
-    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  }
-
-  // 4. Composite and write atlases
-  let oversizedAtlases = [];
-
-  const atlasIndices = Array.from({ length: totalAtlases }, (_, i) => i);
-
-  async function processAtlas(atlasIndex) {
-    const startIndex = atlasIndex * framesPerAtlas;
-    const endIndex = Math.min(startIndex + framesPerAtlas, totalFrames);
-    const atlasFrames = frameFiles.slice(startIndex, endIndex);
-
-    const composites = atlasFrames.map((filename, i) => {
-      const col = i % columns;
-      const row = Math.floor(i / columns);
-      return {
-        input: path.join(FRAMES_DIR, filename),
-        left: col * frameWidth,
-        top: row * frameHeight,
-      };
-    });
-
-    const outputFilename = `atlas-${atlasIndex}.webp`;
-    const outputPath = path.join(OUTPUT_DIR, outputFilename);
-
-    const atlasBuffer = await sharp({
-      create: {
-        width: atlasWidth,
-        height: atlasHeight,
-        channels: 3,
-        background: { r: 5, g: 5, b: 5 }, // Match background color #050505
-      },
-    })
-      .composite(composites)
-      .webp({ quality: WEBP_QUALITY })
-      .toBuffer();
-
-    fs.writeFileSync(outputPath, atlasBuffer);
-
-    const sizeInMB = atlasBuffer.length / (1024 * 1024);
-    if (sizeInMB > 2.0) {
-      oversizedAtlases.push({ atlasIndex, sizeInMB });
-    }
-
-    process.stdout.write(`\rGenerated atlas ${atlasIndex + 1}/${totalAtlases} (${outputFilename}) - ${sizeInMB.toFixed(2)} MB`);
-  }
-
-  for (let i = 0; i < totalAtlases; i += CONCURRENCY_LIMIT) {
-    const batch = atlasIndices.slice(i, i + CONCURRENCY_LIMIT);
-    await Promise.all(batch.map(processAtlas));
-  }
-
-  console.log('\nAll atlas sheets successfully generated.');
-
-  if (oversizedAtlases.length > 0) {
-    console.warn(`\n[WARNING] ${oversizedAtlases.length} atlas sheets exceeded 2MB:`);
-    oversizedAtlases.forEach(({ atlasIndex, sizeInMB }) => {
-      console.warn(`- atlas-${atlasIndex}.webp: ${sizeInMB.toFixed(2)} MB`);
-    });
-  }
-
-  // 5. Generate manifest.json
-  const manifest = {
-    totalFrames,
-    frameWidth,
-    frameHeight,
+  return {
     columns,
     rows,
     framesPerAtlas,
-    atlasWidth,
-    atlasHeight,
-    totalAtlases,
-    generatedAt: new Date().toISOString(),
+    atlasWidth: columns * frameWidth,
+    atlasHeight: rows * frameHeight,
+    totalAtlases: Math.ceil(totalFrames / framesPerAtlas),
   };
-
-  const manifestPath = path.join(OUTPUT_DIR, 'manifest.json');
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-  console.log(`Manifest written to ${manifestPath}`);
-
-  const srcManifestPath = path.join(__dirname, '..', 'src', 'components', 'scrollytelling', 'atlas-manifest.json');
-  fs.writeFileSync(srcManifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-  console.log(`Source manifest written to ${srcManifestPath}`);
-  console.log('--- Atlas Generation Complete ---');
 }
 
-generateAtlases().catch((err) => {
-  console.error('Atlas generation failed:', err);
-  process.exit(1);
-});
+/** Composites one atlas (frames resized to frameWidth x frameHeight) into a raw RGB buffer. */
+async function composeAtlas(frameFiles, atlasIndex, geo, frameWidth, frameHeight) {
+  const start = atlasIndex * geo.framesPerAtlas;
+  const atlasFrames = frameFiles.slice(start, start + geo.framesPerAtlas);
+  // The last atlas only gets as many rows as it needs.
+  const usedRows = Math.ceil(atlasFrames.length / geo.columns);
+  const width = geo.atlasWidth;
+  const height = usedRows * frameHeight;
+
+  const tiles = await Promise.all(
+    atlasFrames.map((file) =>
+      sharp(path.join(FRAMES_DIR, file))
+        .resize(frameWidth, frameHeight, { fit: 'fill', kernel: 'lanczos3' })
+        .removeAlpha()
+        .raw()
+        .toBuffer()
+    )
+  );
+
+  // Compositing always yields RGBA; strip the (fully opaque) alpha in a second pass so the
+  // encoder gets plain RGB and the atlas decodes as an opaque image.
+  const rgba = await sharp({ create: { width, height, channels: 3, background: BACKGROUND } })
+    .composite(
+      tiles.map((input, i) => ({
+        input,
+        raw: { width: frameWidth, height: frameHeight, channels: 3 },
+        left: (i % geo.columns) * frameWidth,
+        top: Math.floor(i / geo.columns) * frameHeight,
+      }))
+    )
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const raw =
+    rgba.info.channels === 3
+      ? rgba.data
+      : await sharp(rgba.data, { raw: { width, height, channels: rgba.info.channels } }).removeAlpha().raw().toBuffer();
+
+  return { raw, width, height, frames: atlasFrames.length };
+}
+
+function encodeWebp(raw, width, height, { quality, effort }) {
+  return sharp(raw, { raw: { width, height, channels: 3 } })
+    .webp({ quality, effort, smartSubsample: true })
+    .toBuffer();
+}
+
+function contentHash(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex').slice(0, HASH_LENGTH);
+}
+
+async function generateAtlases(opts) {
+  const t0 = Date.now();
+  assertOutsideArchive(OUTPUT_DIR);
+  console.log(`--- Atlas generation (scale=${opts.scale}, webp q=${opts.quality} effort=${opts.effort}) ---`);
+
+  const rawFiles = listSourceFrames();
+  console.log(`Found ${rawFiles.length} source frames.`);
+
+  const keptIndices = await selectFrames(rawFiles);
+  const frameFiles = keptIndices.map((i) => rawFiles[i]);
+  const totalFrames = frameFiles.length;
+  console.log(`Adaptive selection kept ${totalFrames} frames (${frameFiles[0]} .. ${frameFiles[totalFrames - 1]}).`);
+
+  const meta = await sharp(path.join(FRAMES_DIR, frameFiles[0])).metadata();
+  const sourceWidth = meta.width;
+  const sourceHeight = meta.height;
+  if (!sourceWidth || !sourceHeight) throw new Error('Could not determine source frame dimensions.');
+  const frameWidth = Math.round(sourceWidth * opts.scale);
+  const frameHeight = Math.round(sourceHeight * opts.scale);
+  const geo = computeGeometry(frameWidth, frameHeight, totalFrames);
+
+  console.log(`Source ${sourceWidth}x${sourceHeight} -> frames ${frameWidth}x${frameHeight}`);
+  console.log(
+    `Grid ${geo.columns}x${geo.rows} (${geo.framesPerAtlas} frames/atlas), atlas ${geo.atlasWidth}x${geo.atlasHeight}, ` +
+      `${geo.totalAtlases} atlases`
+  );
+
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+  const atlases = await mapLimit(
+    Array.from({ length: geo.totalAtlases }, (_, i) => i),
+    opts.concurrency,
+    async (atlasIndex) => {
+      const { raw, width, height, frames } = await composeAtlas(frameFiles, atlasIndex, geo, frameWidth, frameHeight);
+      const buffer = await encodeWebp(raw, width, height, opts);
+      const file = `atlas-${atlasIndex}.${contentHash(buffer)}.webp`;
+      fs.writeFileSync(path.join(OUTPUT_DIR, file), buffer);
+      console.log(`  ${file}  ${width}x${height}  ${frames} frames  ${(buffer.length / 1024).toFixed(0)} KiB`);
+      return { file, bytes: buffer.length, frames, width, height };
+    }
+  );
+
+  // Remove stale atlases from previous runs (only generator-owned files in OUTPUT_DIR).
+  const current = new Set(atlases.map((a) => a.file));
+  for (const f of fs.readdirSync(OUTPUT_DIR)) {
+    if (STALE_ATLAS_RE.test(f) && !current.has(f)) fs.unlinkSync(path.join(OUTPUT_DIR, f));
+  }
+
+  const totalBytes = atlases.reduce((sum, a) => sum + a.bytes, 0);
+  const decodedBytes = atlases.reduce((sum, a) => sum + a.width * a.height * 4, 0);
+
+  // Deterministic content (no timestamps) so an unchanged sequence yields an unchanged bundle.
+  const manifest = {
+    version: 2,
+    totalFrames,
+    sourceWidth,
+    sourceHeight,
+    scale: opts.scale,
+    frameWidth,
+    frameHeight,
+    columns: geo.columns,
+    rows: geo.rows,
+    framesPerAtlas: geo.framesPerAtlas,
+    atlasWidth: geo.atlasWidth,
+    atlasHeight: geo.atlasHeight,
+    totalAtlases: geo.totalAtlases,
+    totalBytes,
+    format: 'webp',
+    encoder: { quality: opts.quality, effort: opts.effort, smartSubsample: true },
+    basePath: PUBLIC_BASE_PATH,
+    atlases,
+  };
+
+  fs.writeFileSync(
+    path.join(OUTPUT_DIR, 'manifest.json'),
+    JSON.stringify({ ...manifest, sourceFrames: frameFiles }, null, 2) + '\n',
+    'utf-8'
+  );
+  fs.writeFileSync(SRC_MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+
+  console.log(
+    `Wrote ${geo.totalAtlases} atlases: ${(totalBytes / 1048576).toFixed(2)} MiB on disk, ` +
+      `${(decodedBytes / 1048576).toFixed(0)} MiB decoded (RGBA), in ${((Date.now() - t0) / 1000).toFixed(1)}s`
+  );
+  console.log(`Manifests: ${path.relative(ROOT, path.join(OUTPUT_DIR, 'manifest.json'))}, ${path.relative(ROOT, SRC_MANIFEST_PATH)}`);
+}
+
+module.exports = { listSourceFrames, selectFrames, computeGeometry, composeAtlas, encodeWebp, FRAMES_DIR };
+
+if (require.main === module) {
+  let opts;
+  try {
+    opts = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(err.message);
+    process.exit(2);
+  }
+  generateAtlases(opts).catch((err) => {
+    console.error('Atlas generation failed:', err);
+    process.exit(1);
+  });
+}
