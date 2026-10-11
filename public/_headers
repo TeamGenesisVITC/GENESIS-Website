@@ -1,0 +1,54 @@
+# Response headers for Cloudflare Workers static assets.
+# Docs: https://developers.cloudflare.com/workers/static-assets/headers/
+#
+# A request gets the headers of every rule it matches, in file order; a header set by two
+# rules is joined with ", ". "! Header" removes a header set by an earlier rule. "*" matches
+# across "/", ":name" matches one path segment. These rules don't apply to Worker responses
+# (/api/*), which set their own headers in worker/index.js.
+# Cloudflare's default Cache-Control when no rule sets one: public, max-age=0, must-revalidate
+# (revalidate with the ETag on every use). HTML, robots.txt, sitemap.xml and manifest.json
+# keep that default so a deploy is visible immediately.
+
+# Security headers for everything. No enforced Content-Security-Policy yet: fonts come from
+# api.fontshare.com, cdn.fontshare.com, fonts.googleapis.com and fonts.gstatic.com, and the
+# pages contain inline JSON-LD.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()
+
+# Vite build output: file names contain a content hash, so they can be cached forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# public/assets/ is merged into the same folder but its files are NOT hashed
+# (e.g. /assets/genesis-sequence.mp4): override the immutable rule above.
+/assets/*.mp4
+  ! Cache-Control
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# Scroll-sequence atlases. Immutable caching relies on the atlas files getting content-hashed
+# names whenever they change (scripts/generate-atlases.js + its manifest). With fixed names
+# like atlas-0.webp, a regenerated atlas would stay stale in browsers for up to a year.
+/frame-atlases/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Individual scroll frames: large and rarely changed, but not content-hashed.
+/frames/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Top-level public files (favicons, og-image, logos, team photos, videos) have stable,
+# unhashed names: fresh for a day, then revalidated in the background.
+/:file.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.jpeg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.ico
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.mp4
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
