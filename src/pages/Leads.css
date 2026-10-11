@@ -49,6 +49,7 @@
 
 /* Back Button */
 .back-button {
+  text-decoration: none; /* rendered as a link now */
   position: fixed;
   top: 30px;
   left: 30px;
@@ -67,6 +68,13 @@
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+}
+
+/* Invisible hit-area extension: the pill is ~35px tall on phones; this makes it 44px+. */
+.back-button::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
 }
 
 .back-button svg {

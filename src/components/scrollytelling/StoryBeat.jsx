@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 
 /**
  * Editorial StoryBeat - Fluid Crossfade & Snappy Expo-Out Transition
@@ -71,7 +71,7 @@ export default function StoryBeat({ visible, align = 'left', id, children, class
     >
       <AnimatePresence>
         {visible && (
-          <motion.div
+          <m.div
             key={id || 'beat-editorial'}
             className={`beat-editorial-container ${className}`}
             variants={containerVariants}
@@ -80,7 +80,7 @@ export default function StoryBeat({ visible, align = 'left', id, children, class
             exit="exit"
           >
             {children}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

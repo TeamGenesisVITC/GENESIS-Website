@@ -36,21 +36,35 @@ const DepartmentPathway = ({ members = [] }) => {
             const hasQuote = member?.quote && member.quote.trim() !== '';
             const isSelected = selectedMember?.id === member.id;
             
-            return (
-              <div
-                key={member.id}
-                className={`name-item ${isSelected ? 'selected' : ''} ${!hasQuote ? 'no-quote' : ''}`}
-                onClick={() => handleMemberClick(member)}
-              >
+            const content = (
+              <>
                 <span className="name">{member.name}</span>
                 {member.role && <span className="role">{member.role}</span>}
+              </>
+            );
+
+            // Members with a quote are toggle buttons (keyboard + screen-reader operable);
+            // members without one are plain text, as clicking them never did anything.
+            return hasQuote ? (
+              <button
+                type="button"
+                key={member.id}
+                className={`name-item ${isSelected ? 'selected' : ''}`}
+                aria-pressed={isSelected}
+                onClick={() => handleMemberClick(member)}
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={member.id} className="name-item no-quote">
+                {content}
               </div>
             );
           })}
         </div>
 
         {/* RIGHT: Reactive Quote Field */}
-        <div className={`quote-field ${selectedMember ? 'active' : ''}`}>
+        <div className={`quote-field ${selectedMember ? 'active' : ''}`} aria-live="polite">
           {selectedMember ? (
             <div className="quote-display">
               <div className="quote-name">{selectedMember.name}</div>

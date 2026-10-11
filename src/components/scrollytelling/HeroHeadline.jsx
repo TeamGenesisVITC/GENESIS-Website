@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { motion, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
+import { m, useMotionValue, useSpring, useMotionTemplate, useReducedMotion } from "framer-motion";
 
 /**
  * HeroHeadline - Cursor Spotlight Reveal Component
@@ -25,8 +25,13 @@ export default function HeroHeadline({
   const smoothX = useSpring(mouseX, springConfig);
   const smoothY = useSpring(mouseY, springConfig);
 
+  // Reduced motion: the spotlight follows the cursor directly, without spring lag.
+  const reduceMotion = useReducedMotion();
+  const spotX = reduceMotion ? mouseX : smoothX;
+  const spotY = reduceMotion ? mouseY : smoothY;
+
   // Dynamic radial gradient spotlight mask
-  const maskImage = useMotionTemplate`radial-gradient(180px circle at ${smoothX}px ${smoothY}px, black 0%, transparent 100%)`;
+  const maskImage = useMotionTemplate`radial-gradient(180px circle at ${spotX}px ${spotY}px, black 0%, transparent 100%)`;
 
   const handleMouseMove = (e) => {
     if (!containerRef.current) return;
@@ -61,7 +66,7 @@ export default function HeroHeadline({
       </h1>
 
       {/* ── SPOTLIGHT OVERLAY LAYER: Vibrant Purple Gradient Revealed Exclusively Under Cursor ── */}
-      <motion.div
+      <m.div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none select-none"
         animate={{ opacity: isHovered ? 1 : 0 }}
@@ -71,7 +76,8 @@ export default function HeroHeadline({
           WebkitMaskImage: maskImage,
         }}
       >
-        <h1 
+        {/* Decorative duplicate of the headline: a div (not a second h1) so the page has a single h1. */}
+        <div
           className="text-[clamp(4rem,10vw,9rem)] font-black tracking-[-0.04em] uppercase leading-none font-cabinet bg-clip-text text-transparent"
           style={{
             backgroundImage: "linear-gradient(135deg, #5A189A 0%, #9D4EDD 50%, #C77DFF 100%)",
@@ -81,8 +87,8 @@ export default function HeroHeadline({
           }}
         >
           {text}
-        </h1>
-      </motion.div>
+        </div>
+      </m.div>
     </div>
   );
 }

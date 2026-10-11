@@ -1,33 +1,21 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import './SoftwareAI.css';
 import aiBg from '../assets/images/ai-bg.png';
+import aiBgAvif from '../assets/images/ai-bg.avif';
+import aiBgWebp from '../assets/images/ai-bg.webp';
+import { TeamBackdrop, BackToTeamLink } from './TeamPageChrome';
 import DepartmentPathway from '../components/DepartmentPathway';
 import { softwareMembers } from '../data/softwareMembers';
 
 function SoftwareAI() {
-  const navigate = useNavigate();
-
   return (
     <div className="software-ai-page">
-      {/* Neon Grid Background */}
-      <div className="neon-grid"></div>
+      <TeamBackdrop avif={aiBgAvif} webp={aiBgWebp} png={aiBg} width={1426} height={1024} />
 
-      {/* Background Image */}
-      <div className="hero-background">
-        <img src={aiBg} alt="" />
-      </div>
-
-      {/* Back Button */}
-      <button className="back-button" onClick={() => navigate('/robo-hi')}>
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        Back
-      </button>
+      <BackToTeamLink />
 
       {/* Main Content */}
-      <div className="department-layout">
+      <main id="main-content" tabIndex={-1} className="department-layout">
         {/* Header Section - Full Width */}
         <div className="header-section">
           <div className="title-badge">
@@ -65,7 +53,7 @@ function SoftwareAI() {
             <DepartmentPathway members={softwareMembers} />
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
