@@ -1,0 +1,46 @@
+name: Deploy to Cloudflare Workers
+
+# Manual only for now: run it from the Actions tab ("Run workflow").
+# Requires repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see README).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # vite build: dist/client (static assets, per-route HTML, 404.html) and
+      # dist/genesis_website (Worker + generated wrangler.json).
+      - name: Build
+        run: npm run build
+
+      # Uses the wrangler version from package-lock.json and the generated config
+      # (.wrangler/deploy/config.json -> dist/genesis_website/wrangler.json).
+      - name: Deploy with Wrangler
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

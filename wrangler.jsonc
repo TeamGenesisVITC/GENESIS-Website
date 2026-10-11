@@ -1,0 +1,46 @@
+// Cloudflare Worker + static assets configuration for the Team Genesis website.
+// Docs: https://developers.cloudflare.com/workers/static-assets/
+//
+// Used by the Cloudflare Vite plugin (vite.config.mjs). `vite build` writes the final config to
+// dist/genesis_website/wrangler.json (with assets.directory pointing at dist/client), and
+// `wrangler deploy` / `wrangler dev` pick that up automatically via .wrangler/deploy/config.json.
+// Run `npm run build` before any wrangler command.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "genesis-website",
+  "main": "./worker/index.js",
+  "compatibility_date": "2026-10-09",
+
+  "observability": {
+    "enabled": true
+  },
+
+  // Custom domains. Not active yet: teamgenesisvitc.in is registered at Hostinger and must be
+  // added as a zone in this Cloudflare account first (see README "Deploying to Cloudflare").
+  // Uncomment once the zone is active in Cloudflare.
+  // "routes": [
+  //   { "pattern": "teamgenesisvitc.in", "custom_domain": true },
+  //   { "pattern": "www.teamgenesisvitc.in", "custom_domain": true }
+  // ],
+
+  "assets": {
+    // No "directory": the Vite plugin sets it to the client build output (dist/client).
+    "binding": "ASSETS",
+
+    // Route HTML is generated as flat files (robo-hi.html, team/leads.html, ...) by
+    // scripts/prerender-routes.mjs. With auto-trailing-slash:
+    //   /team/leads       -> 200 team/leads.html   (canonical, as in public/sitemap.xml)
+    //   /team/leads/      -> 307 /team/leads
+    //   /team/leads.html  -> 307 /team/leads
+    //   /                 -> 200 index.html
+    "html_handling": "auto-trailing-slash",
+
+    // Anything that is not a file gets the nearest 404.html with HTTP 404. 404.html boots the
+    // SPA, so React Router renders its NotFound route; it carries robots "noindex".
+    // (Do not switch to "single-page-application": unknown URLs would return 200 + index.html.)
+    "not_found_handling": "404-page",
+
+    // Only /api/* invokes the Worker first; everything else is served straight from assets.
+    "run_worker_first": ["/api/*"]
+  }
+}
