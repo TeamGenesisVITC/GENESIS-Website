@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { leadsMembers, coFounders, legacyLeads, legacyMembers } from '../../data/leadsMembers';
@@ -13,14 +14,19 @@ export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
   const [hoveredMember, setHoveredMember] = useState(null);
+  const prefersReducedMotion = useReducedMotion();
 
-  // GSAP Pinned Horizontal Scroll
+  // GSAP Pinned Horizontal Scroll (tablet/desktop only). On phones the slides are taller
+  // than the viewport, so pinning them clipped most of the roster; there the CSS stacks
+  // the slides vertically instead. With "reduce motion" the track still follows the
+  // scroll position 1:1 (scrub: true) but without the 0.8s catch-up easing.
   useEffect(() => {
     const section = sectionRef.current;
     const track = trackRef.current;
     if (!section || !track) return;
 
-    const ctx = gsap.context(() => {
+    const mm = gsap.matchMedia();
+    mm.add('(min-width: 769px)', () => {
       const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
       gsap.to(track, {
@@ -30,16 +36,16 @@ export default function TeamSection() {
           trigger: section,
           start: 'top top',
           end: () => `+=${track.scrollWidth - window.innerWidth}`,
-          scrub: 0.8,
+          scrub: prefersReducedMotion ? true : 0.8,
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,
         },
       });
-    }, section);
+    });
 
-    return () => ctx.revert();
-  }, []);
+    return () => mm.revert();
+  }, [prefersReducedMotion]);
 
   // Filter department leads
   const executiveRoles = ['Captain', 'Vice Captain', 'Head of Operations', 'Internal Strategy Lead'];
@@ -106,6 +112,10 @@ export default function TeamSection() {
                     sizes="(max-width: 1024px) 100vw, 560px"
                     alt="The full Team Genesis roster at VIT Chennai"
                     className="media-photo-img media-photo-img--team"
+                    width="800"
+                    height="600"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="media-photo-overlay" />
                   <div className="media-photo-caption font-mono">

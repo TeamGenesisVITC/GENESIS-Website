@@ -22,3 +22,195 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* ══════════════════════════════════════════════════════════
+   ACCESSIBILITY: FOCUS, SKIP LINK, SCREEN-READER UTILITIES
+   ══════════════════════════════════════════════════════════ */
+
+/* Visible keyboard focus everywhere. Purple accent on silver; a lighter purple on
+   the dark surfaces (they set --focus-ring). Mouse clicks do not show the ring. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring, #6D28D9);
+  outline-offset: 3px;
+}
+
+.genesis-header,
+.canvas-sticky,
+.team-hscroll-wrapper,
+.robo-hi,
+.leads-page,
+.electrical-page,
+.mechanical-page,
+.software-ai-page,
+.route-status--dark {
+  --focus-ring: #C084FC;
+}
+
+/* Programmatic focus targets (skip link destination, in-page section jumps). */
+[tabindex='-1']:focus {
+  outline: none;
+}
+
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 3000;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: #111113;
+  color: #FFFFFF;
+  font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-160%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #C084FC;
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ROUTE LOADING / ERROR STATES (lazy route chunks)
+   ══════════════════════════════════════════════════════════ */
+.route-status {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.route-status--dark {
+  background: #0a0118;
+  color: #E9D5FF;
+}
+
+.route-status--light {
+  background-color: #EAEAEF;
+  background-image: linear-gradient(135deg, #F5F5F7 0%, #EAEAEF 50%, #D1D1D6 100%);
+  color: #111113;
+}
+
+.route-status__label,
+.route-status__eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.route-status__label {
+  opacity: 0;
+  /* Only appears if loading takes noticeably long. */
+  animation: route-status-reveal 0.2s ease 0.4s forwards, route-status-pulse 1.6s ease-in-out 0.6s infinite;
+}
+
+.route-status--dark .route-status__label,
+.route-status--dark .route-status__eyebrow {
+  color: #C084FC;
+}
+
+.route-status--light .route-status__label,
+.route-status--light .route-status__eyebrow {
+  color: #5E5E66;
+}
+
+.route-status__message {
+  font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.route-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.route-status__btn {
+  min-height: 44px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 132, 252, 0.4);
+  background: linear-gradient(135deg, #5A189A 0%, #7E22CE 100%);
+  color: #FFFFFF;
+  font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.route-status__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+}
+
+@keyframes route-status-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes route-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   REDUCED MOTION
+   Lenis smoothing, framer-motion transforms, GSAP scrub easing and the nav
+   scramble effect are switched off in JS; this covers the CSS animations and
+   transitions (pulsing grids, floating particles, hover lifts, smooth anchor jumps).
+   ══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

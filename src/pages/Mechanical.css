@@ -49,6 +49,7 @@
 
 /* Back Button */
 .back-button {
+  text-decoration: none; /* rendered as a link now */
   position: fixed;
   top: 30px;
   left: 30px;
@@ -67,6 +68,13 @@
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+}
+
+/* Invisible hit-area extension: the pill is ~35px tall on phones; this makes it 44px+. */
+.back-button::after {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
 }
 
 .back-button svg {
@@ -243,6 +251,12 @@
   align-items: center;
   justify-content: center;
   background: url('../assets/images/mechanical-and-design-bg.png') center/contain no-repeat;
+  /* Modern formats first; browsers without image-set type() keep the PNG above. */
+  background-image: image-set(
+    url('../assets/images/mechanical-and-design-bg.avif') type('image/avif'),
+    url('../assets/images/mechanical-and-design-bg.webp') type('image/webp'),
+    url('../assets/images/mechanical-and-design-bg.png') type('image/png')
+  );
   opacity: 0.8;
   filter: drop-shadow(0 20px 60px rgba(168, 85, 247, 0.4));
   animation: floatRobot 6s ease-in-out infinite;
