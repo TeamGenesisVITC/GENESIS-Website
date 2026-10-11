@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
-import Lenis from 'lenis';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -82,43 +81,19 @@ function AnimatedMetric({ targetValue, suffix = '', label }) {
 export default function GenesisLanding() {
   const containerRef = useRef(null);
   const targetProgressRef = useRef(0);
-  const lenisRef = useRef(null);
   const [activeBeat, setActiveBeat] = useState(0);
   const [legalModal, setLegalModal] = useState(null); // 'tos' | 'privacy' | 'charter' | null
   const prefersReducedMotion = useReducedMotion();
   const legalTriggerRef = useRef(null);
   const legalCloseRef = useRef(null);
 
-  // Initialize Lenis smooth scroll engine
+  // Native scrolling. The browser scrolls on its compositor thread, so input moves the page
+  // with no JavaScript in the path (no wheel interception, no smoothing library). Everything
+  // scroll-linked reads the position from this passive listener and follows it exactly.
   useEffect(() => {
-    // With "reduce motion" on, Lenis runs as a pass-through: native (unsmoothed, no inertia)
-    // wheel/touch scrolling, but it still emits 'scroll' so the canvas keeps mapping
-    // scroll position to frames below.
-    const lenis = new Lenis({
-      // lerp mode: every frame closes a fixed share of the remaining distance. A fixed 1.2 s
-      // ease restarted on each wheel event (the previous `duration` setup) lagged behind input
-      // and stuttered with high-resolution wheels and trackpads.
-      lerp: 0.1,
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: !prefersReducedMotion,
-      // Touch keeps the device's native momentum scrolling; Lenis still reports the position.
-      syncTouch: false,
-      wheelMultiplier: 1,
-      touchMultiplier: 1.0,
-    });
-
-    lenisRef.current = lenis;
-
-    const tickerCallback = (time) => {
-      lenis.raf(time * 1000);
-    };
-    // Prioritized so Lenis updates scroll before ScrollCanvas renders in the same tick
-    gsap.ticker.add(tickerCallback, false, true);
     gsap.ticker.lagSmoothing(0);
-    lenis.on('scroll', ScrollTrigger.update);
 
-    lenis.on('scroll', () => {
+    const onScroll = () => {
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
@@ -137,21 +112,26 @@ export default function GenesisLanding() {
       else beat = 4;
 
       setActiveBeat((prev) => (prev !== beat ? beat : prev));
-    });
-
-    return () => {
-      gsap.ticker.remove(tickerCallback);
-      lenis.destroy();
-      if (lenisRef.current === lenis) lenisRef.current = null;
     };
-  }, [prefersReducedMotion]);
+
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
 
   // Legal dialog: Escape closes it, focus moves into it and back to the trigger,
   // and the page behind stops scrolling while it is open.
   useEffect(() => {
     if (!legalModal) return undefined;
-    const lenis = lenisRef.current;
-    if (lenis) lenis.stop();
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    const previousGutter = root.style.scrollbarGutter;
+    root.style.scrollbarGutter = 'stable'; // no layout shift when the scrollbar hides
+    root.style.overflow = 'hidden';
     if (legalCloseRef.current) legalCloseRef.current.focus();
 
     const onKeyDown = (e) => {
@@ -179,7 +159,8 @@ export default function GenesisLanding() {
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      if (lenis) lenis.start();
+      root.style.overflow = previousOverflow;
+      root.style.scrollbarGutter = previousGutter;
       if (legalTriggerRef.current) legalTriggerRef.current.focus();
     };
   }, [legalModal]);
@@ -194,16 +175,10 @@ export default function GenesisLanding() {
   const scrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
     if (!el) return;
-    if (lenisRef.current) {
-      lenisRef.current.scrollTo(
-        el,
-        prefersReducedMotion
-          ? { offset: -50, immediate: true }
-          : { duration: 1.4, offset: -50, easing: (t) => 1 - Math.pow(1 - t, 3) } // easeOutCubic
-      );
-    } else {
-      el.scrollIntoView();
-    }
+    window.scrollTo({
+      top: el.getBoundingClientRect().top + window.scrollY - 50,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
     if (el.tabIndex === -1) el.focus({ preventScroll: true });
   };
 
@@ -476,7 +451,7 @@ export default function GenesisLanding() {
         <div className="canvas-sticky">
 
           {/* Hardware Inspection Scrollytelling Canvas */}
-          <ScrollCanvas targetProgressRef={targetProgressRef} reducedMotion={prefersReducedMotion} />
+          <ScrollCanvas targetProgressRef={targetProgressRef} />
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
           <StoryBeat id="beat-mechanical" visible={activeBeat === 0} align="right">
@@ -827,8 +802,8 @@ export default function GenesisLanding() {
                 </button>
               </div>
 
-              {/* data-lenis-prevent: let the wheel scroll this panel natively instead of the page */}
-              <div className="modal-body-scroll" data-lenis-prevent="" tabIndex={0}>
+              {/* The page behind is locked (overflow hidden), so the wheel scrolls this panel. */}
+              <div className="modal-body-scroll" tabIndex={0}>
                 {legalModal === 'tos' && (
                   <div className="legal-content font-mono">
                     <h3 id="legal-modal-title" className="legal-heading font-cabinet">TERMS OF SERVICE</h3>

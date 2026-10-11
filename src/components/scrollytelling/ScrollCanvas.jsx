@@ -40,8 +40,6 @@ const READY_TIMEOUT_MS = 12000;
 // to the same ~18 ms as with the canvas disabled.
 const MAX_CANVAS_DPR = 1.5;
 const MIN_CANVAS_SCALE = 0.5;
-// Inertia rate (per second); equals the previous 0.18-per-frame lerp at 60 Hz, now refresh-rate independent
-const DAMPING_PER_SECOND = 11.9;
 
 const STATUS_IDLE = 0;
 const STATUS_LOADING = 1;
@@ -191,7 +189,6 @@ export default function ScrollCanvas({
   onProgressUpdate,
   onLoadProgress,
   onSiteReady,
-  reducedMotion = false // prefers-reduced-motion: snap to the target frame instead of easing
 }) {
   const canvasRef = useRef(null);
   // Per-frame draw sources: { image, sx, sy } once its atlas is decoded, else null.
@@ -205,12 +202,10 @@ export default function ScrollCanvas({
   // Latest callbacks, so the loader effect runs once even if the parent passes inline functions.
   const onLoadProgressRef = useRef(onLoadProgress);
   const onSiteReadyRef = useRef(onSiteReady);
-  const reducedMotionRef = useRef(reducedMotion);
   // Sync after commit rather than during render; layout effects run before the ticker's next draw.
   useLayoutEffect(() => {
     onLoadProgressRef.current = onLoadProgress;
     onSiteReadyRef.current = onSiteReady;
-    reducedMotionRef.current = reducedMotion;
   });
 
   const currentFrameRef = useRef(0);
@@ -627,7 +622,7 @@ export default function ScrollCanvas({
     let lastDrawnOffset = -99999;
     let lastTargetProgress = null;
 
-    const render = (time, deltaTime) => {
+    const render = () => {
       // Determine active target frame
       let targetProgress = 0;
       if (targetProgressRef && typeof targetProgressRef.current === 'number') {
@@ -649,16 +644,10 @@ export default function ScrollCanvas({
       const { w } = dimensionsRef.current;
       const targetOffset = getTargetOffsetX(targetProgress, w);
 
-      // Smooth cubic inertia lerping
-      const frameDelta = exactTargetFrame - currentFrameRef.current;
-      const offsetDelta = targetOffset - currentOffsetXRef.current;
-
-      // Frame-rate independent exponential smoothing (same feel on 60/120/144 Hz displays);
-      // reduced motion snaps straight to the target
-      const dt = Math.min(deltaTime || 16.7, 100) / 1000;
-      const ease = reducedMotionRef.current ? 1 : 1 - Math.exp(-DAMPING_PER_SECOND * dt);
-      currentFrameRef.current += frameDelta * ease;
-      currentOffsetXRef.current += offsetDelta * ease;
+      // Follow the scroll position exactly. The browser already animates wheel and trackpad
+      // scrolling natively; easing again here only made the sequence trail the page.
+      currentFrameRef.current = exactTargetFrame;
+      currentOffsetXRef.current = targetOffset;
 
       // Draw only when values move (or a missing frame just arrived)
       if (

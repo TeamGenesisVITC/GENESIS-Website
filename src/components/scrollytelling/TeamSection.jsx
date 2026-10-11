@@ -18,8 +18,8 @@ export default function TeamSection() {
 
   // GSAP Pinned Horizontal Scroll (tablet/desktop only). On phones the slides are taller
   // than the viewport, so pinning them clipped most of the roster; there the CSS stacks
-  // the slides vertically instead. With "reduce motion" the track still follows the
-  // scroll position 1:1 (scrub: true) but without the 0.8s catch-up easing.
+  // the slides vertically instead. The track follows the scroll position 1:1 (scrub: true):
+  // a catch-up delay made the slides trail the page.
   useEffect(() => {
     const section = sectionRef.current;
     const track = trackRef.current;
@@ -36,7 +36,7 @@ export default function TeamSection() {
           trigger: section,
           start: 'top top',
           end: () => `+=${track.scrollWidth - window.innerWidth}`,
-          scrub: prefersReducedMotion ? true : 0.8,
+          scrub: true,
           pin: true,
           anticipatePin: 1,
           invalidateOnRefresh: true,

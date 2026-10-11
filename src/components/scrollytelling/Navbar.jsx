@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { m, useScroll, useSpring, useReducedMotion } from 'framer-motion';
+import { m, useScroll, useReducedMotion } from 'framer-motion';
 // 80x80 palette PNG (3.5 KB, smaller than AVIF/WebP + <picture> overhead at this size);
 // small enough that the bundler inlines it, so the logo costs no extra request.
 import logoPng from '../../assets/images/genesis-logo-80.png';
@@ -115,13 +115,8 @@ export default function Navbar({ onNavigateToSection }) {
   const [scrolled, setScrolled] = useState(false);
   const reduceMotion = useReducedMotion();
 
-  // Dynamic Scroll Progress Bar using Framer Motion Spring (raw progress when reducing motion)
+  // Scroll progress bar: tracks the scroll position directly (no spring lag).
   const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 240,
-    damping: 30,
-    restDelta: 0.001,
-  });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -210,7 +205,7 @@ export default function Navbar({ onNavigateToSection }) {
         <m.div
           aria-hidden="true"
           className="nav-purple-progress-bar"
-          style={{ scaleX: reduceMotion ? scrollYProgress : scaleX }}
+          style={{ scaleX: scrollYProgress }}
         />
       </div>
     </header>

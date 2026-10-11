@@ -160,7 +160,9 @@ const PERF_HELPERS_SRC = `(function(){
           if (dir > 0 && y >= maxY - 2) dir = -1;
           else if (dir < 0 && y <= 2) { resolve(); return; }
           if (performance.now() - t0 > maxMs) { resolve(); return; }
-          window.dispatchEvent(new WheelEvent('wheel', { deltaY: dir * 160, bubbles: true, cancelable: true }));
+          // Scroll the page itself: a synthetic WheelEvent only moved pages that hijack the
+          // wheel in JS (the old Lenis setup); the site now uses native scrolling.
+          window.scrollBy({ top: dir * 160, behavior: 'instant' }); // html has scroll-behavior: smooth
           requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
