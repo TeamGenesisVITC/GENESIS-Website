@@ -88,8 +88,8 @@ html.lenis, html.lenis body {
   height: 64px;
   z-index: 1000;
   background: rgba(10, 10, 16, 0.72);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(168, 85, 247, 0.28);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
   transition: background 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -97,8 +97,8 @@ html.lenis, html.lenis body {
 
 .genesis-header--scrolled {
   background: rgba(8, 8, 12, 0.88);
-  backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
+  backdrop-filter: blur(24px) saturate(190%);
   border-bottom-color: rgba(168, 85, 247, 0.5);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
@@ -323,10 +323,10 @@ html.lenis, html.lenis body {
   cursor: pointer;
   display: inline-block;
   text-shadow: none !important;
-  filter: none !important;
   -webkit-filter: none !important;
-  backdrop-filter: none !important;
+  filter: none !important;
   -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   transition: all 500ms cubic-bezier(0, 0, 0.2, 1);
 }
 
@@ -365,8 +365,8 @@ html.lenis, html.lenis body {
 }
 
 .select-none {
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 .relative {
@@ -608,8 +608,8 @@ html.lenis, html.lenis body {
 /* Milestone Data Table */
 .mono-table-wrapper {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   margin-top: 32px;
@@ -668,8 +668,8 @@ html.lenis, html.lenis body {
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   margin-top: 36px;
   overflow: hidden;
 }
@@ -816,8 +816,8 @@ html.lenis, html.lenis body {
   width: 100%;
   max-width: 480px;
   background: rgba(8, 8, 10, 0.78);
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
   border-radius: 10px;
@@ -951,8 +951,8 @@ html.lenis, html.lenis body {
 
 .col-block {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 28px;
@@ -991,8 +991,8 @@ html.lenis, html.lenis body {
 /* Dossier Callout Card */
 .dossier-card {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 36px;
@@ -1226,8 +1226,8 @@ html.lenis, html.lenis body {
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2006,8 +2006,8 @@ html.lenis, html.lenis body {
   height: auto;
   max-height: calc(100vh - 120px);
   background: rgba(18, 18, 26, 0.82);
-  backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 28px 36px;

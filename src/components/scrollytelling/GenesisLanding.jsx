@@ -95,13 +95,16 @@ export default function GenesisLanding() {
     // wheel/touch scrolling, but it still emits 'scroll' so the canvas keeps mapping
     // scroll position to frames below.
     const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => 1 - Math.pow(1 - t, 3), // Clean easeOutCubic
+      // lerp mode: every frame closes a fixed share of the remaining distance. A fixed 1.2 s
+      // ease restarted on each wheel event (the previous `duration` setup) lagged behind input
+      // and stuttered with high-resolution wheels and trackpads.
+      lerp: 0.1,
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: !prefersReducedMotion,
-      syncTouch: !prefersReducedMotion,
-      wheelMultiplier: prefersReducedMotion ? 1 : 0.6,
+      // Touch keeps the device's native momentum scrolling; Lenis still reports the position.
+      syncTouch: false,
+      wheelMultiplier: 1,
       touchMultiplier: 1.0,
     });
 
@@ -194,7 +197,9 @@ export default function GenesisLanding() {
     if (lenisRef.current) {
       lenisRef.current.scrollTo(
         el,
-        prefersReducedMotion ? { offset: -50, immediate: true } : { duration: 1.4, offset: -50 }
+        prefersReducedMotion
+          ? { offset: -50, immediate: true }
+          : { duration: 1.4, offset: -50, easing: (t) => 1 - Math.pow(1 - t, 3) } // easeOutCubic
       );
     } else {
       el.scrollIntoView();
