@@ -115,6 +115,33 @@ export function renderRouteHtml(html, meta, { url, isHome }) {
   return out;
 }
 
+// Lazy route chunks that a prerendered page needs before it can show content. Hinting them in
+// the page's own HTML lets the browser fetch them in parallel with the main bundle instead of
+// discovering them only after it runs (one extra round trip, ~0.4 s on slow mobile networks).
+const LAZY_ROUTE_CHUNKS = [
+  { module: /[\\/]src[\\/]pages[\\/]teamRoutes\.js$/, routes: (path) => path === '/robo-hi' || (path?.startsWith('/team/') ?? false) },
+  { module: /[\\/]src[\\/]pages[\\/]NotFound\.jsx$/, routes: (path) => path === null },
+];
+
+/** `<link>` tags for a lazy chunk's JS (plus its non-entry imports) and CSS. */
+function lazyChunkHints(bundle, moduleTest) {
+  const chunks = Object.values(bundle).filter((c) => c.type === 'chunk');
+  const chunk = chunks.find((c) => c.facadeModuleId && moduleTest.test(c.facadeModuleId));
+  if (!chunk) return '';
+  const entry = chunks.find((c) => c.isEntry);
+  const alreadyLoaded = new Set([entry?.fileName, ...(entry?.imports || [])]);
+  const js = [chunk.fileName, ...chunk.imports].filter((f) => !alreadyLoaded.has(f));
+  const css = [...(chunk.viteMetadata?.importedCss || [])];
+  return [
+    ...js.map((f) => `<link rel="modulepreload" crossorigin href="/${f}">`),
+    ...css.map((f) => `<link rel="stylesheet" crossorigin href="/${f}">`),
+  ].join('\n    ');
+}
+
+function injectHints(html, hints) {
+  return hints ? html.replace('</head>', `    ${hints}\n  </head>`) : html;
+}
+
 /** Paths listed in public/sitemap.xml, e.g. ["/", "/team/leads"]. */
 function readSitemapPaths(root, siteUrl) {
   let xml;
@@ -172,11 +199,17 @@ export default function prerenderRoutes() {
         }
       }
 
+      const hintsFor = (path) =>
+        LAZY_ROUTE_CHUNKS.filter((c) => c.routes(path))
+          .map((c) => lazyChunkHints(bundle, c.module))
+          .filter(Boolean)
+          .join('\n    ');
+
       for (const [path, meta] of Object.entries(ROUTE_META)) {
-        const html = renderRouteHtml(template, meta, {
-          url: canonicalUrl(path),
-          isHome: path === '/',
-        });
+        const html = injectHints(
+          renderRouteHtml(template, meta, { url: canonicalUrl(path), isHome: path === '/' }),
+          hintsFor(path),
+        );
         const fileName = routeToFileName(path);
         if (fileName === 'index.html') {
           indexAsset.source = html;
@@ -188,7 +221,10 @@ export default function prerenderRoutes() {
       this.emitFile({
         type: 'asset',
         fileName: '404.html',
-        source: renderRouteHtml(template, NOT_FOUND_META, { url: null, isHome: false }),
+        source: injectHints(
+          renderRouteHtml(template, NOT_FOUND_META, { url: null, isHome: false }),
+          hintsFor(null),
+        ),
       });
     },
   };
