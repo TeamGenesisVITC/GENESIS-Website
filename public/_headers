@@ -27,12 +27,20 @@
 /assets/*.mp4
   ! Cache-Control
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/assets/*.webm
+  ! Cache-Control
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
 # Scroll-sequence atlases. Immutable caching relies on the atlas files getting content-hashed
 # names whenever they change (scripts/generate-atlases.js + its manifest). With fixed names
 # like atlas-0.webp, a regenerated atlas would stay stale in browsers for up to a year.
 /frame-atlases/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The generator's manifest keeps a fixed name, so it must not inherit the immutable rule.
+/frame-atlases/manifest.json
+  ! Cache-Control
+  Cache-Control: public, max-age=0, must-revalidate
 
 # Individual scroll frames: large and rarely changed, but not content-hashed.
 /frames/*
@@ -50,5 +58,9 @@
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /:file.ico
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.avif
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /:file.mp4
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/:file.webm
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800

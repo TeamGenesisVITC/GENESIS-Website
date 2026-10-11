@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "build:atlases": "node scripts/generate-atlases.js",
+    "build:atlases": "node scripts/generate-atlases.js --scale=0.5",
     "cf-typegen": "wrangler types",
     "deploy": "npm run build && wrangler deploy"
   },
