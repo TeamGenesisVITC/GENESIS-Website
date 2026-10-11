@@ -231,6 +231,9 @@ async function runScenario(cdp, scenario) {
   if (scenario.disableFilterAnim) {
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `const s=document.createElement('style');s.textContent='*{filter:none!important;}';document.documentElement.appendChild(s);` });
   }
+  if (scenario.extraCss) {
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `const s=document.createElement('style');s.textContent=${JSON.stringify(scenario.extraCss)};document.documentElement.appendChild(s);` });
+  }
 
   const loaded = cdp.once('Page.loadEventFired');
   await cdp.send('Page.navigate', { url });
@@ -327,6 +330,11 @@ async function main() {
     'no-backdrop': { name: 'no-backdrop', disableBackdrop: true },
     'no-filter': { name: 'no-filter', disableFilterAnim: true },
     'no-atlas-no-backdrop': { name: 'no-atlas-no-backdrop', blockAtlases: true, disableBackdrop: true },
+    // Page-level paint costs: fixed-attachment backgrounds repaint on every scroll in Chrome,
+    // and mix-blend-mode layers force a blend pass over everything beneath them.
+    'no-fixed-bg': { name: 'no-fixed-bg', extraCss: '*{background-attachment:scroll!important;}' },
+    'no-blend': { name: 'no-blend', extraCss: '*{mix-blend-mode:normal!important;}' },
+    'no-fixed-bg-no-blend': { name: 'no-fixed-bg-no-blend', extraCss: '*{background-attachment:scroll!important;mix-blend-mode:normal!important;}' },
     'scale-50': { name: 'scale-50', query: '?atlasScale=0.5' },
     'scale-33': { name: 'scale-33', query: '?atlasScale=0.33' },
     nodraw: { name: 'nodraw', query: '?noCanvasDraw=1' },

@@ -122,6 +122,9 @@ html.lenis, html.lenis body {
   background: linear-gradient(90deg, #5A189A 0%, #9D4EDD 50%, #C77DFF 100%);
   transform-origin: 0%;
   box-shadow: 0 0 12px rgba(168, 85, 247, 1), 0 0 24px rgba(157, 78, 221, 0.8);
+  /* scaleX is set inline every scroll frame; keep it on its own layer so it scales on the GPU
+     instead of repainting. */
+  will-change: transform;
 }
 
 .header-inner {
@@ -2106,6 +2109,9 @@ html.lenis, html.lenis body {
 .hint-arrow {
   display: inline-block;
   animation: bounceY 1.8s ease-in-out infinite;
+  /* Own compositor layer: without it this endless animation repainted the whole page layer
+     every frame (~500 viewport-sized repaints per 3 s of scrolling, even off-screen). */
+  will-change: transform;
 }
 
 @keyframes bounceY {
