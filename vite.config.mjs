@@ -44,6 +44,9 @@ export default defineConfig(({ command, isPreview }) => {
     build: {
       // Vite's hashed JS/CSS/images go to /assets/* (cached as immutable, see public/_headers).
       assetsDir: 'assets',
+      // AVIF/WebP files are <picture> alternatives: inlining them would put every format into
+      // the JS chunk even though the browser only uses one. Keep them as separate files.
+      assetsInlineLimit: (filePath) => (/\.(avif|webp)$/i.test(filePath) ? false : undefined),
       rolldownOptions: {
         output: {
           // Keep rarely-changing libraries in their own long-cached chunks so an app-only
