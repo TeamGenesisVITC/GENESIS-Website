@@ -108,15 +108,22 @@ function MagneticButton({ children, href, onClick, className = '', reduceMotion 
   );
 }
 
+// CSS scroll-driven animations (Chrome/Edge 115+, Safari 26+). Firefox still has them behind a
+// flag, so it gets the JavaScript progress bar instead.
+const SCROLL_TIMELINE_SUPPORTED =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: scroll()');
+
+function JsProgressBar() {
+  const { scrollYProgress } = useScroll();
+  return <m.div aria-hidden="true" className="nav-purple-progress-bar" style={{ scaleX: scrollYProgress }} />;
+}
+
 /**
  * Top Navigation Bar with Persistent High-Tech Purple Scroll Progress Bar
  */
 export default function Navbar({ onNavigateToSection }) {
   const [scrolled, setScrolled] = useState(false);
   const reduceMotion = useReducedMotion();
-
-  // Scroll progress bar: tracks the scroll position directly (no spring lag).
-  const { scrollYProgress } = useScroll();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -202,11 +209,12 @@ export default function Navbar({ onNavigateToSection }) {
 
       {/* ── HIGH-TECH PURPLE SCROLL PROGRESS BAR (UNDER NAVBAR) ── */}
       <div className="nav-progress-track">
-        <m.div
-          aria-hidden="true"
-          className="nav-purple-progress-bar"
-          style={{ scaleX: scrollYProgress }}
-        />
+        {SCROLL_TIMELINE_SUPPORTED ? (
+          // Scroll-driven CSS animation: runs on the compositor, no JavaScript per frame.
+          <div aria-hidden="true" className="nav-purple-progress-bar nav-purple-progress-bar--css" />
+        ) : (
+          <JsProgressBar />
+        )}
       </div>
     </header>
   );

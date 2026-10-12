@@ -33,8 +33,7 @@
 }
 
 .genesis-landing {
-  background-image: linear-gradient(135deg, #F5F5F7 0%, #EAEAEF 50%, #D1D1D6 100%);
-  background-attachment: fixed;
+  /* The page backdrop is drawn by .landing-backdrop (a fixed layer), not by this element. */
   color: var(--text-headline);
   font-family: var(--font-satoshi);
   min-height: 100vh;
@@ -44,9 +43,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.textured-silver-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
+/* Studio backdrop: grain (overlay-blended at 40%), overhead highlight and the brushed-silver
+   gradient, all in one fixed layer. background-blend-mode is resolved when the layer is
+   painted, so the GPU composites a single static image while scrolling. The previous setup
+   (a full-viewport mix-blend-mode: overlay layer plus a separate highlight layer) made the GPU
+   re-blend the whole viewport every frame, roughly halving the scroll frame rate.
+   The grain's 40% opacity is baked into the SVG (opacity on the rect), which gives the same
+   result as opacity: 0.4 on a mix-blend-mode element. */
+.landing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #EAEAEF;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.4'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(135deg, #F5F5F7 0%, #EAEAEF 50%, #D1D1D6 100%);
+  background-blend-mode: overlay, normal, normal;
 }
 
 
@@ -125,6 +139,21 @@ html.lenis, html.lenis body {
   /* scaleX is set inline every scroll frame; keep it on its own layer so it scales on the GPU
      instead of repainting. */
   will-change: transform;
+}
+
+/* Where supported, the bar is driven by the page's scroll position on the compositor thread:
+   no JavaScript runs while scrolling. */
+@supports (animation-timeline: scroll()) {
+  .nav-purple-progress-bar--css {
+    transform: scaleX(0);
+    animation: nav-progress-grow linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes nav-progress-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 
 .header-inner {
@@ -608,8 +637,7 @@ html.lenis, html.lenis body {
 /* Milestone Data Table */
 .mono-table-wrapper {
   background: var(--bg-panel);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   margin-top: 32px;
@@ -668,8 +696,7 @@ html.lenis, html.lenis body {
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   background: var(--bg-panel);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   margin-top: 36px;
   overflow: hidden;
 }
@@ -816,8 +843,7 @@ html.lenis, html.lenis body {
   width: 100%;
   max-width: 480px;
   background: rgba(8, 8, 10, 0.78);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
   border-radius: 10px;
@@ -951,8 +977,7 @@ html.lenis, html.lenis body {
 
 .col-block {
   background: var(--bg-panel);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 28px;
@@ -991,8 +1016,7 @@ html.lenis, html.lenis body {
 /* Dossier Callout Card */
 .dossier-card {
   background: var(--bg-panel);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 36px;
@@ -2006,8 +2030,7 @@ html.lenis, html.lenis body {
   height: auto;
   max-height: calc(100vh - 120px);
   background: rgba(18, 18, 26, 0.82);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 28px 36px;
@@ -2109,9 +2132,15 @@ html.lenis, html.lenis body {
 .hint-arrow {
   display: inline-block;
   animation: bounceY 1.8s ease-in-out infinite;
+  /* Paused until the team section is on screen (TeamSection toggles .is-onscreen). */
+  animation-play-state: paused;
   /* Own compositor layer: without it this endless animation repainted the whole page layer
      every frame (~500 viewport-sized repaints per 3 s of scrolling, even off-screen). */
   will-change: transform;
+}
+
+.is-onscreen .hint-arrow {
+  animation-play-state: running;
 }
 
 @keyframes bounceY {

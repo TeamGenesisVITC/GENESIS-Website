@@ -185,28 +185,9 @@ export default function GenesisLanding() {
   return (
     <div className="genesis-landing">
       
-      {/* ── 1. STUDIO HIGHLIGHT (Soft Overhead Pure White Lighting on Metal) ── */}
-      <div 
-        aria-hidden="true" 
-        className="pointer-events-none fixed inset-0 z-0" 
-        style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 70%)',
-        }}
-      />
-
-      {/* ── 2. PHYSICAL TEXTURE (Sandblasted Anodized Aluminum SVG Grain) ── */}
-      <div 
-        aria-hidden="true" 
-        className="textured-silver-grain pointer-events-none"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 0,
-          opacity: 0.4,
-          mixBlendMode: 'overlay',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-        }}
-      />
+      {/* ── 1+2. STUDIO BACKDROP: brushed-silver gradient, soft overhead highlight and
+          anodized grain, composed once into a single static fixed layer (.landing-backdrop) ── */}
+      <div aria-hidden="true" className="landing-backdrop" />
 
       {/* ── 3. INTERACTIVE FOREGROUND & CONTENT CONTAINER ── */}
       <div style={{ position: 'relative', zIndex: 10, width: '100%' }}>

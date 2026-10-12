@@ -184,6 +184,11 @@ const PERF_HELPERS_SRC = `(function(){
 })();`;
 
 // ---------------------------------------------------------------- scenario
+// Injects a stylesheet into every new document. The script runs before <html> exists, so a
+// plain document.documentElement.appendChild() threw and silently did nothing: wait for the
+// head instead.
+const injectCss = (css) => `(() => { const add = () => { const s = document.createElement("style"); s.textContent = ${JSON.stringify(css)}; (document.head || document.documentElement).appendChild(s); }; if (document.head) add(); else document.addEventListener("DOMContentLoaded", add, { once: true }); })();`;
+
 async function runScenario(cdp, scenario) {
   const { url, settleMs = 4000, scrubCycles = DEFAULT_CYCLES, maxMsPerCycle = 40000 } = scenario;
   await cdp.send('Network.enable');
@@ -228,13 +233,13 @@ async function runScenario(cdp, scenario) {
   }
 
   if (scenario.disableBackdrop) {
-    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `const s=document.createElement('style');s.textContent='*{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}';document.documentElement.appendChild(s);` });
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: injectCss('*{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}') });
   }
   if (scenario.disableFilterAnim) {
-    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `const s=document.createElement('style');s.textContent='*{filter:none!important;}';document.documentElement.appendChild(s);` });
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: injectCss('*{filter:none!important;}') });
   }
   if (scenario.extraCss) {
-    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `const s=document.createElement('style');s.textContent=${JSON.stringify(scenario.extraCss)};document.documentElement.appendChild(s);` });
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: injectCss(scenario.extraCss) });
   }
 
   const loaded = cdp.once('Page.loadEventFired');

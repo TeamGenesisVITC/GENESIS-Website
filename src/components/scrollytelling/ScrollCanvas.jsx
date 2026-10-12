@@ -181,7 +181,7 @@ function readInitialProgress(containerSelector, targetProgressRef) {
  *   current scroll position and direction with bounded concurrency, kept resident once decoded
  * - Site is reported ready once the initial view plus a short lead-in is decoded
  * - Decode off the main thread (createImageBitmap); misses draw the nearest decoded frame
- * - Single gsap.ticker render loop with frame-rate independent inertia and sub-frame cross-blend
+ * - On-demand draws that follow the scroll position exactly, with a sub-frame cross-blend
  */
 export default function ScrollCanvas({
   containerSelector = "#flagship-section",
@@ -194,6 +194,8 @@ export default function ScrollCanvas({
   // Per-frame draw sources: { image, sx, sy } once its atlas is decoded, else null.
   const framesRef = useRef(new Array(TOTAL_FRAMES).fill(null));
   const needsRedrawRef = useRef(false);
+  // Schedules a draw in the next animation frame (set by the render effect).
+  const requestRenderRef = useRef(() => {});
   const lastDrawExactRef = useRef(true);
   // Where the user is heading (target frame) and the last scroll direction, for load priority.
   const focusFrameRef = useRef(0);
@@ -499,7 +501,10 @@ export default function ScrollCanvas({
         };
       }
       // Repaint if the last draw had to stand in for a missing frame (or drew nothing).
-      if (!lastDrawExactRef.current) needsRedrawRef.current = true;
+      if (!lastDrawExactRef.current) {
+        needsRedrawRef.current = true;
+        requestRenderRef.current();
+      }
     };
 
     const handleFailure = (atlasIdx, error) => {
@@ -615,14 +620,19 @@ export default function ScrollCanvas({
     };
   }, [containerSelector, onProgressUpdate]);
 
-  // Single unified render loop on gsap.ticker: runs in the same tick as Lenis (registered
-  // earlier), so every draw sees this frame's scroll position instead of last frame's
+  // On-demand rendering: draw in the next animation frame only when the scroll position
+  // changes, an atlas arrives, or the sequence comes into view. A permanent ticker made the
+  // main thread produce a frame on every vsync, even with the sequence off screen, so the
+  // page never scrolled purely on the compositor.
   useEffect(() => {
     let lastDrawnFrame = -1;
     let lastDrawnOffset = -99999;
     let lastTargetProgress = null;
+    let rafId = 0;
+    let inView = false;
 
     const render = () => {
+      rafId = 0;
       // Determine active target frame
       let targetProgress = 0;
       if (targetProgressRef && typeof targetProgressRef.current === 'number') {
@@ -662,9 +672,36 @@ export default function ScrollCanvas({
       }
     };
 
-    gsap.ticker.add(render);
-    return () => gsap.ticker.remove(render);
-  }, [targetProgressRef, drawFrame]);
+    const requestRender = () => {
+      if (!inView || rafId) return;
+      rafId = requestAnimationFrame(render);
+    };
+    requestRenderRef.current = requestRender;
+
+    const section = document.querySelector(containerSelector) || document.getElementById('flagship-section');
+    let observer = null;
+    if (section && typeof IntersectionObserver === 'function') {
+      observer = new IntersectionObserver(([entry]) => {
+        inView = entry.isIntersecting;
+        if (inView) {
+          needsRedrawRef.current = true;
+          requestRender();
+        }
+      }, { rootMargin: '50% 0px' });
+      observer.observe(section);
+    } else {
+      inView = true;
+    }
+
+    window.addEventListener('scroll', requestRender, { passive: true });
+    requestRender();
+    return () => {
+      window.removeEventListener('scroll', requestRender);
+      if (observer) observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      requestRenderRef.current = () => {};
+    };
+  }, [targetProgressRef, drawFrame, containerSelector]);
 
   return (
     <canvas

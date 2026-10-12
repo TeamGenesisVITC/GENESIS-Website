@@ -47,6 +47,18 @@ export default function TeamSection() {
     return () => mm.revert();
   }, [prefersReducedMotion]);
 
+  // Run the decorative hint animation only while the section is on screen; an endless CSS
+  // animation otherwise keeps the browser rendering a frame every vsync for the whole visit.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver !== 'function') return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      section.classList.toggle('is-onscreen', entry.isIntersecting);
+    });
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
   // Filter department leads
   const executiveRoles = ['Captain', 'Vice Captain', 'Head of Operations', 'Internal Strategy Lead'];
   const executiveLeads = leadsMembers
