@@ -38,25 +38,29 @@ function ScrollManager() {
     }
     if (navigationType === 'POP') return undefined;
 
-    let frame = 0;
-    let tries = 0;
+    // While a lazy route resolves, React can keep the new tree display:none (and the old page
+    // on screen); focus() is a no-op until it is actually rendered. Wait for the new page to
+    // appear, however long the chunk takes on a slow network, then reset the scroll position
+    // (instantly: html has scroll-behavior: smooth) and move focus at the same moment.
     const focusMain = () => {
       const mains = document.querySelectorAll('#main-content');
       const main = mains.length === 1 ? mains[0] : null;
-      // While a lazy route resolves, React can briefly keep the new tree display:none
-      // (and the old page on screen); focus() is a no-op until it is actually rendered,
-      // so keep polling, and reset the scroll position at the same moment.
-      if (main && main.getClientRects().length > 0) {
-        window.scrollTo(0, 0);
-        main.focus({ preventScroll: true });
-      } else if (tries++ < 300) {
-        frame = requestAnimationFrame(focusMain);
-      } else {
-        window.scrollTo(0, 0);
-      }
+      if (!main || main.getClientRects().length === 0) return false;
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      main.focus({ preventScroll: true });
+      return true;
     };
-    frame = requestAnimationFrame(focusMain);
-    return () => cancelAnimationFrame(frame);
+    if (focusMain()) return undefined;
+    const observer = new MutationObserver(() => {
+      if (focusMain()) observer.disconnect();
+    });
+    observer.observe(document.getElementById('root') || document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'hidden', 'class'],
+    });
+    return () => observer.disconnect();
   }, [pathname, navigationType]);
 
   return null;

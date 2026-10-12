@@ -1183,8 +1183,9 @@ html.lenis, html.lenis body {
   color: var(--text-headline);
 }
 
-/* Legal dialog pieces (same drift: designed as .legal-modal-* above). */
-.legal-modal-panel {
+/* Legal dialog pieces (same drift: designed as .legal-modal-* above). Scoped to the backdrop so
+   it outranks the shared `.legal-modal-card, .legal-modal-panel` rule further down. */
+.legal-modal-backdrop .legal-modal-panel {
   /* Near-opaque: the shared 72% panel tint over the dimmed backdrop left body text
      below 4.5:1. */
   background: rgba(244, 244, 246, 0.97);
@@ -2622,10 +2623,10 @@ html.lenis, html.lenis body {
   }
 }
 
-/* Phones: the pinned horizontal track is disabled in TeamSection.jsx (gsap.matchMedia),
-   so stack the slides vertically. Previously each slide was clipped to one viewport
-   height and to 100vw, cutting off most of the roster and the header badges. */
-@media (max-width: 768px) {
+/* Phones and reduced motion: the pinned horizontal track is disabled in TeamSection.jsx
+   (gsap.matchMedia), so stack the slides vertically. On phones each slide used to be clipped
+   to one viewport height and to 100vw, cutting off most of the roster and the header badges. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
   .team-hscroll-stage {
     position: relative;
     width: 100%;
@@ -2638,11 +2639,20 @@ html.lenis, html.lenis body {
     height: auto;
     padding-top: 0;
     transform: none !important;
+    will-change: auto; /* no transform to animate: don't keep a huge layer */
   }
   .team-hslide {
     flex: none;
     width: 100%;
     height: auto;
+  }
+  .hslide-inner {
+    max-height: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .team-hslide {
     padding: 24px 16px;
   }
   .team-hslide:first-child {

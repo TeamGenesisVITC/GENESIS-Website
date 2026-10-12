@@ -32,6 +32,30 @@ const MAX_RETRIES = 4;
 const RETRY_BASE_MS = 500;
 // Never hold the site hostage to the sequence: report ready after this long regardless.
 const READY_TIMEOUT_MS = 12000;
+// A download that receives no bytes for this long is aborted and retried, so one stalled
+// request can never hold up the rest of the sequence.
+const STALL_TIMEOUT_MS = 10000;
+// Residency window. A decoded atlas is ~55 MB (3840x3780 RGBA); keeping all nine resident cost
+// ~0.5 GB plus GPU copies, enough to get a phone tab killed. Only atlases around the current
+// position stay decoded; the compressed files (~0.5 MB each) are kept, so re-entering the
+// window costs one off-main-thread decode (~80 ms).
+const LOW_MEMORY =
+  typeof navigator !== 'undefined' &&
+  ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+    (typeof window !== 'undefined' && window.innerWidth < 768));
+const RESIDENT_AHEAD = LOW_MEMORY ? 1 : 2;
+const RESIDENT_BEHIND = 1;
+// Atlases beyond the initial view are fetched and decoded only once the sequence is this close.
+const NEAR_MARGIN = '150% 0px';
+// Reduced motion: one still frame per story beat (same thresholds as GenesisLanding's beats),
+// no scrubbing and no camera glide.
+const BEAT_THRESHOLDS = [0.21, 0.45, 0.69, 0.87];
+const BEAT_STILLS = [0.1, 0.33, 0.57, 0.78, 0.94];
+function reducedMotionStill(progress) {
+  let beat = 0;
+  while (beat < BEAT_THRESHOLDS.length && progress >= BEAT_THRESHOLDS[beat]) beat++;
+  return BEAT_STILLS[beat];
+}
 // Canvas backing resolution. Atlas frames are only FRAME_WIDTH (960px) wide and get upscaled to
 // cover the viewport, so backing pixels beyond the frame's own resolution add GPU fill cost (each
 // frame is ~3.5 full-canvas passes) without adding detail; the compositor stretches the canvas
@@ -39,13 +63,16 @@ const READY_TIMEOUT_MS = 12000;
 // (5x fewer pixels per pass); on an Intel UHD iGPU the median scroll frame dropped from ~30 ms
 // to the same ~18 ms as with the canvas disabled.
 const MAX_CANVAS_DPR = 1.5;
-const MIN_CANVAS_SCALE = 0.5;
+// Only a sanity floor: on very large viewports the native-resolution cap is far below 0.5.
+const MIN_CANVAS_SCALE = 0.2;
 
-const STATUS_IDLE = 0;
-const STATUS_LOADING = 1;
-const STATUS_READY = 2;
+const STATUS_IDLE = 0;       // not downloaded
+const STATUS_LOADING = 1;    // downloading
+const STATUS_READY = 2;      // decoded and drawable
 const STATUS_RETRY_WAIT = 3;
 const STATUS_FAILED = 4;
+const STATUS_STORED = 5;     // compressed file kept, not decoded (outside the window)
+const STATUS_DECODING = 6;
 
 // Opt-in counters for the perf harness: load the page with ?scstats to expose window.__sc.
 const STATS =
@@ -65,9 +92,9 @@ function atlasOfFrame(frameIdx) {
   return Math.floor(frameIdx / FRAMES_PER_ATLAS);
 }
 
-// Reads a response body while reporting received bytes (used for the critical atlases' progress).
+// Reads a response body while reporting received bytes (progress and stall detection).
 async function readBlob(response, onBytes) {
-  if (!onBytes || !response.body || typeof response.body.getReader !== 'function') {
+  if (!response.body || typeof response.body.getReader !== 'function') {
     return response.blob();
   }
   const reader = response.body.getReader();
@@ -178,7 +205,8 @@ function readInitialProgress(containerSelector, targetProgressRef) {
 /**
  * Scroll-scrubbed frame sequence on a canvas.
  * - Sprite-sheet atlases (see scripts/generate-atlases.js), streamed by priority around the
- *   current scroll position and direction with bounded concurrency, kept resident once decoded
+ *   current scroll position and direction with bounded concurrency; only a small window of
+ *   atlases around the current position stays decoded
  * - Site is reported ready once the initial view plus a short lead-in is decoded
  * - Decode off the main thread (createImageBitmap); misses draw the nearest decoded frame
  * - On-demand draws that follow the scroll position exactly, with a sub-frame cross-blend
@@ -189,8 +217,11 @@ export default function ScrollCanvas({
   onProgressUpdate,
   onLoadProgress,
   onSiteReady,
+  reducedMotion = false,
 }) {
   const canvasRef = useRef(null);
+  // Lets the render loop tell the atlas loader that the position or direction changed.
+  const loaderTickRef = useRef(() => {});
   // Per-frame draw sources: { image, sx, sy } once its atlas is decoded, else null.
   const framesRef = useRef(new Array(TOTAL_FRAMES).fill(null));
   const needsRedrawRef = useRef(false);
@@ -204,10 +235,16 @@ export default function ScrollCanvas({
   // Latest callbacks, so the loader effect runs once even if the parent passes inline functions.
   const onLoadProgressRef = useRef(onLoadProgress);
   const onSiteReadyRef = useRef(onSiteReady);
-  // Sync after commit rather than during render; layout effects run before the ticker's next draw.
+  const reducedMotionRef = useRef(reducedMotion);
+  // Sync after commit rather than during render; layout effects run before the next draw.
   useLayoutEffect(() => {
     onLoadProgressRef.current = onLoadProgress;
     onSiteReadyRef.current = onSiteReady;
+    if (reducedMotionRef.current !== reducedMotion) {
+      reducedMotionRef.current = reducedMotion;
+      needsRedrawRef.current = true;
+      requestRenderRef.current();
+    }
   });
 
   const currentFrameRef = useRef(0);
@@ -340,7 +377,12 @@ export default function ScrollCanvas({
         const ctx = canvas.getContext('2d', { alpha: false });
         if (ctx) ctx.scale(dpr, dpr);
       }
+      // Resizing clears the canvas: repaint the last frame now (no black flash), then redraw
+      // through the normal path next frame, after the page's own resize handler has recomputed
+      // the scroll progress (frame and horizontal offset both depend on it and on the width).
       drawFrame(currentFrameRef.current, currentOffsetXRef.current);
+      needsRedrawRef.current = true;
+      requestRenderRef.current();
     };
 
     handleResize();
@@ -348,20 +390,26 @@ export default function ScrollCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, [drawFrame]);
 
-  // ── Atlas streaming: critical set first, then priority order around the scroll position ──
+  // ── Atlas streaming ─────────────────────────────────────────────────────────────────────
+  // 1. The atlas holding the initial view (plus a short lead-in) is fetched and decoded first;
+  //    the site is reported ready when it is drawable (or after READY_TIMEOUT_MS regardless).
+  // 2. Everything else waits until the sequence is near the viewport (NEAR_MARGIN). Then the
+  //    compressed atlases download in priority order around the scroll position and direction,
+  //    and only the residency window around the current position is decoded. Atlases that leave
+  //    the window are released (their compressed file is kept for a quick re-decode).
   useEffect(() => {
     let cancelled = false;
     const frames = framesRef.current;
     const status = new Uint8Array(TOTAL_ATLASES);
     const attempts = new Uint8Array(TOTAL_ATLASES);
     const controllers = new Map(); // atlasIdx -> AbortController (download in progress)
-    const releases = [];           // decoded resources to free on unmount
+    const blobs = new Map();       // atlasIdx -> compressed Blob, kept for re-decoding
+    const decoded = new Map();     // atlasIdx -> release() for its decoded pixels
     const timers = new Set();
-    const pendingDecodes = new Map(); // atlasIdx -> downloaded Blob awaiting decode
     let activeFetches = 0;
     let activeDecodes = 0;
-    let loadedCount = 0;
     let readySignalled = false;
+    let near = false;
 
     // Critical set: atlases holding the initial frame and the lead-in after it.
     const initialFrame = Math.round(readInitialProgress(containerSelector, targetProgressRef) * (TOTAL_FRAMES - 1));
@@ -371,7 +419,6 @@ export default function ScrollCanvas({
       critical.add(atlasOfFrame(f));
     }
     let criticalUnsettled = critical.size;   // not yet decoded or permanently failed
-    const downloaded = new Uint8Array(TOTAL_ATLASES);
     const criticalTotalBytes = [...critical].reduce((sum, i) => sum + ((ATLASES && ATLASES[i] && ATLASES[i].bytes) || 0), 0);
     let criticalReceivedBytes = 0;
     let lastProgress = -1;
@@ -398,6 +445,7 @@ export default function ScrollCanvas({
       }
       const cb = onSiteReadyRef.current;
       if (cb) cb(true);
+      pump(); // the critical gate is open now, whatever its atlases are doing
     };
 
     const settleCritical = (atlasIdx) => {
@@ -407,11 +455,36 @@ export default function ScrollCanvas({
       if (criticalUnsettled === 0) signalReady();
     };
 
+    const schedule = (fn, ms) => {
+      const id = setTimeout(() => {
+        timers.delete(id);
+        fn();
+      }, ms);
+      timers.add(id);
+      return id;
+    };
+    const unschedule = (id) => {
+      clearTimeout(id);
+      timers.delete(id);
+    };
+
+    const focusAtlas = () => atlasOfFrame(Math.round(focusFrameRef.current));
+
     // Lower score = sooner. Atlases ahead in the scroll direction cost half as much as behind.
     const priorityOf = (atlasIdx) => {
-      const d = (atlasIdx - atlasOfFrame(Math.round(focusFrameRef.current))) * scrollDirRef.current;
+      const d = (atlasIdx - focusAtlas()) * scrollDirRef.current;
       return d >= 0 ? d : -2 * d + 0.5;
     };
+
+    const inWindow = (atlasIdx) => {
+      const focus = focusAtlas();
+      const forward = scrollDirRef.current >= 0;
+      const ahead = forward ? RESIDENT_AHEAD : RESIDENT_BEHIND;
+      const behind = forward ? RESIDENT_BEHIND : RESIDENT_AHEAD;
+      return atlasIdx >= focus - behind && atlasIdx <= focus + ahead;
+    };
+    // Atlases that should be decoded right now.
+    const wanted = (atlasIdx) => (!readySignalled && critical.has(atlasIdx)) || (near && inWindow(atlasIdx));
 
     const pickBest = (isCandidate) => {
       let best = -1;
@@ -427,19 +500,30 @@ export default function ScrollCanvas({
       return best;
     };
 
-    // Downloads: until every critical atlas has arrived, critical ones get the connection alone.
-    const criticalDownloadPending = () => {
-      let pending = false;
-      critical.forEach((i) => { if (!downloaded[i]) pending = true; });
-      return pending;
+    // Until the initial view is ready, its atlases get the connection and the decoder alone.
+    const criticalGateOpen = () => readySignalled || criticalUnsettled === 0;
+    const canFetch = (i) => status[i] === STATUS_IDLE && (critical.has(i) || (near && criticalGateOpen()));
+    const canDecode = (i) => status[i] === STATUS_STORED && wanted(i) && (critical.has(i) || criticalGateOpen());
+
+    const clearFrames = (atlasIdx) => {
+      const first = atlasIdx * FRAMES_PER_ATLAS;
+      const count = Math.min(FRAMES_PER_ATLAS, TOTAL_FRAMES - first);
+      for (let local = 0; local < count; local++) frames[first + local] = null;
     };
-    const canFetch = (i) => status[i] === STATUS_IDLE && (critical.has(i) || !criticalDownloadPending());
-    // Decodes: nothing else decodes until the critical set is done, so the initial view never
-    // competes with background atlases for decoder threads.
-    const canDecode = (i) => pendingDecodes.has(i) && (criticalUnsettled === 0 || critical.has(i));
+
+    const evict = () => {
+      decoded.forEach((release, atlasIdx) => {
+        if (wanted(atlasIdx)) return;
+        clearFrames(atlasIdx);
+        release();
+        decoded.delete(atlasIdx);
+        status[atlasIdx] = STATUS_STORED;
+      });
+    };
 
     const pump = () => {
       if (cancelled) return;
+      evict();
       while (activeFetches < MAX_CONCURRENT_FETCHES) {
         const next = pickBest(canFetch);
         if (next < 0) break;
@@ -448,46 +532,13 @@ export default function ScrollCanvas({
       while (activeDecodes < MAX_CONCURRENT_DECODES) {
         const next = pickBest(canDecode);
         if (next < 0) break;
-        const blob = pendingDecodes.get(next);
-        pendingDecodes.delete(next);
-        decodeAndRegister(next, blob);
+        decodeAndRegister(next);
       }
-    };
-
-    const decodeAndRegister = async (atlasIdx, blob) => {
-      activeDecodes++;
-      try {
-        const decoded = await decodeAtlas(blob);
-        if (cancelled) {
-          decoded.release();
-          return;
-        }
-        releases.push(decoded.release);
-        registerAtlas(atlasIdx, decoded.source);
-        status[atlasIdx] = STATUS_READY;
-        loadedCount++;
-        if (STATS) {
-          STATS.loaded = loadedCount;
-          if (loadedCount === TOTAL_ATLASES) STATS.allLoadedAt = performance.now();
-        }
-        settleCritical(atlasIdx);
-      } catch (error) {
-        if (!cancelled) {
-          downloaded[atlasIdx] = 0;
-          handleFailure(atlasIdx, error);
-        }
-      } finally {
-        activeDecodes--;
-        pump();
+      if (STATS) {
+        STATS.current = decoded.size;
+        STATS.resident = Math.max(STATS.resident || 0, decoded.size);
+        STATS.downloaded = blobs.size;
       }
-    };
-
-    const schedule = (fn, ms) => {
-      const id = setTimeout(() => {
-        timers.delete(id);
-        fn();
-      }, ms);
-      timers.add(id);
     };
 
     const registerAtlas = (atlasIdx, source) => {
@@ -504,6 +555,34 @@ export default function ScrollCanvas({
       if (!lastDrawExactRef.current) {
         needsRedrawRef.current = true;
         requestRenderRef.current();
+      }
+    };
+
+    const decodeAndRegister = async (atlasIdx) => {
+      status[atlasIdx] = STATUS_DECODING;
+      activeDecodes++;
+      try {
+        const result = await decodeAtlas(blobs.get(atlasIdx));
+        if (cancelled || !wanted(atlasIdx)) {
+          // Unmounted, or scrolled out of the window while decoding.
+          result.release();
+          if (!cancelled) status[atlasIdx] = STATUS_STORED;
+          return;
+        }
+        decoded.set(atlasIdx, result.release);
+        registerAtlas(atlasIdx, result.source);
+        status[atlasIdx] = STATUS_READY;
+        if (STATS) STATS.loaded = decoded.size;
+        settleCritical(atlasIdx);
+      } catch (error) {
+        if (!cancelled) {
+          // Corrupt or undecodable file: drop it and download again.
+          blobs.delete(atlasIdx);
+          handleFailure(atlasIdx, error);
+        }
+      } finally {
+        activeDecodes--;
+        pump();
       }
     };
 
@@ -531,45 +610,50 @@ export default function ScrollCanvas({
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       controllers.set(atlasIdx, controller);
       const isCritical = critical.has(atlasIdx);
-      let downloading = true;
-      const finishDownload = (ok) => {
-        if (!downloading) return;
-        downloading = false;
-        controllers.delete(atlasIdx);
-        activeFetches--;
-        if (ok) downloaded[atlasIdx] = 1;
+      // Abort (and retry) a download that stops receiving bytes.
+      let stalled = false;
+      let stallTimer = null;
+      const armStallTimer = () => {
+        if (stallTimer !== null) unschedule(stallTimer);
+        stallTimer = schedule(() => {
+          stalled = true;
+          if (controller) controller.abort();
+        }, STALL_TIMEOUT_MS);
       };
+      armStallTimer();
 
       try {
         const response = await fetch(atlasUrl(atlasIdx), controller ? { signal: controller.signal } : undefined);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        // Critical downloads report byte progress (0-90%); the last 10% is decode.
-        const blob = await readBlob(
-          response,
-          isCritical && criticalTotalBytes > 0
-            ? (n) => {
-                criticalReceivedBytes += n;
-                reportProgress((criticalReceivedBytes / criticalTotalBytes) * 90);
-              }
-            : null
-        );
-        finishDownload(true);
+        const blob = await readBlob(response, (n) => {
+          armStallTimer();
+          // Critical downloads report byte progress (0-90%); the last 10% is decode.
+          if (isCritical && criticalTotalBytes > 0) {
+            criticalReceivedBytes += n;
+            reportProgress((criticalReceivedBytes / criticalTotalBytes) * 90);
+          }
+        });
         if (cancelled) return;
-        pendingDecodes.set(atlasIdx, blob);
+        blobs.set(atlasIdx, blob);
+        status[atlasIdx] = STATUS_STORED;
+        if (STATS && blobs.size === TOTAL_ATLASES) STATS.allLoadedAt = performance.now();
       } catch (error) {
-        // Bytes of a failed attempt stay counted; reportProgress is monotonic anyway.
-        finishDownload(false);
-        if (cancelled || (error && error.name === 'AbortError')) return;
-        handleFailure(atlasIdx, error);
+        if (cancelled) return;
+        if (error && error.name === 'AbortError' && !stalled) return;
+        handleFailure(atlasIdx, stalled ? new Error(`stalled for ${STALL_TIMEOUT_MS} ms`) : error);
+      } finally {
+        if (stallTimer !== null) unschedule(stallTimer);
+        controllers.delete(atlasIdx);
+        activeFetches--;
+        if (!cancelled) pump();
       }
-      pump();
     };
 
     // Retry everything that gave up once the connection comes back.
     const handleOnline = () => {
       for (let i = 0; i < TOTAL_ATLASES; i++) {
         if (status[i] === STATUS_FAILED) {
-          status[i] = STATUS_IDLE;
+          status[i] = blobs.has(i) ? STATUS_STORED : STATUS_IDLE;
           attempts[i] = 0;
         }
       }
@@ -577,21 +661,40 @@ export default function ScrollCanvas({
     };
     window.addEventListener('online', handleOnline);
 
+    // Start background work only when the sequence is close to the viewport; release it all
+    // again once the visitor is far away (only compressed files stay in memory).
+    const section = document.querySelector(containerSelector) || document.getElementById('flagship-section');
+    let nearObserver = null;
+    if (section && typeof IntersectionObserver === 'function') {
+      nearObserver = new IntersectionObserver(([entry]) => {
+        near = entry.isIntersecting;
+        pump();
+      }, { rootMargin: NEAR_MARGIN });
+      nearObserver.observe(section);
+    } else {
+      near = true;
+    }
+
+    // The render loop calls this when the focus atlas or the scroll direction changes.
+    loaderTickRef.current = pump;
+
     reportProgress(0);
     schedule(signalReady, READY_TIMEOUT_MS);
     pump();
 
     return () => {
       cancelled = true;
+      loaderTickRef.current = () => {};
       window.removeEventListener('online', handleOnline);
+      if (nearObserver) nearObserver.disconnect();
       timers.forEach((id) => clearTimeout(id));
       timers.clear();
       controllers.forEach((c) => c && c.abort());
       controllers.clear();
-      pendingDecodes.clear();
       frames.fill(null);
-      releases.forEach((release) => release());
-      releases.length = 0;
+      decoded.forEach((release) => release());
+      decoded.clear();
+      blobs.clear();
     };
   }, [containerSelector, targetProgressRef]);
 
@@ -599,6 +702,8 @@ export default function ScrollCanvas({
   useEffect(() => {
     const targetElement = document.querySelector(containerSelector) || document.getElementById("flagship-section");
     if (!targetElement) return;
+    // Only needed when the parent does not track progress itself (it does on the landing page).
+    if (targetProgressRef && !onProgressUpdate) return;
 
     triggerRef.current = ScrollTrigger.create({
       trigger: targetElement,
@@ -618,7 +723,7 @@ export default function ScrollCanvas({
         triggerRef.current = null;
       }
     };
-  }, [containerSelector, onProgressUpdate]);
+  }, [containerSelector, onProgressUpdate, targetProgressRef]);
 
   // On-demand rendering: draw in the next animation frame only when the scroll position
   // changes, an atlas arrives, or the sequence comes into view. A permanent ticker made the
@@ -630,6 +735,8 @@ export default function ScrollCanvas({
     let lastTargetProgress = null;
     let rafId = 0;
     let inView = false;
+    let lastFocusAtlas = -1;
+    let lastDir = 0;
 
     const render = () => {
       rafId = 0;
@@ -649,10 +756,20 @@ export default function ScrollCanvas({
       }
       lastTargetProgress = targetProgress;
 
-      const exactTargetFrame = targetProgress * (TOTAL_FRAMES - 1);
+      // Reduced motion: hold one still per story beat instead of scrubbing and gliding.
+      const shownProgress = reducedMotionRef.current ? reducedMotionStill(targetProgress) : targetProgress;
+      const exactTargetFrame = shownProgress * (TOTAL_FRAMES - 1);
       focusFrameRef.current = exactTargetFrame;
       const { w } = dimensionsRef.current;
-      const targetOffset = getTargetOffsetX(targetProgress, w);
+      const targetOffset = getTargetOffsetX(shownProgress, w);
+
+      // Let the loader move its residency window when the position crosses into another atlas.
+      const focusAtlas = atlasOfFrame(Math.round(exactTargetFrame));
+      if (focusAtlas !== lastFocusAtlas || scrollDirRef.current !== lastDir) {
+        lastFocusAtlas = focusAtlas;
+        lastDir = scrollDirRef.current;
+        loaderTickRef.current();
+      }
 
       // Follow the scroll position exactly. The browser already animates wheel and trackpad
       // scrolling natively; easing again here only made the sequence trail the page.

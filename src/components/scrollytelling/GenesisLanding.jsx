@@ -432,7 +432,7 @@ export default function GenesisLanding() {
         <div className="canvas-sticky">
 
           {/* Hardware Inspection Scrollytelling Canvas */}
-          <ScrollCanvas targetProgressRef={targetProgressRef} />
+          <ScrollCanvas targetProgressRef={targetProgressRef} reducedMotion={prefersReducedMotion} />
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
           <StoryBeat id="beat-mechanical" visible={activeBeat === 0} align="right">

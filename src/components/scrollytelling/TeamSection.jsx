@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { leadsMembers, coFounders, legacyLeads, legacyMembers } from '../../data/leadsMembers';
@@ -14,19 +13,20 @@ export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
   const [hoveredMember, setHoveredMember] = useState(null);
-  const prefersReducedMotion = useReducedMotion();
 
-  // GSAP Pinned Horizontal Scroll (tablet/desktop only). On phones the slides are taller
-  // than the viewport, so pinning them clipped most of the roster; there the CSS stacks
-  // the slides vertically instead. The track follows the scroll position 1:1 (scrub: true):
-  // a catch-up delay made the slides trail the page.
+  // GSAP Pinned Horizontal Scroll (tablet/desktop, motion allowed). On phones the slides are
+  // taller than the viewport, so pinning them clipped most of the roster; there, and for
+  // visitors who asked for reduced motion, the CSS stacks the slides vertically instead.
+  // gsap.matchMedia reverts and re-applies automatically when either condition changes.
+  // The track follows the scroll position 1:1 (scrub: true): a catch-up delay made the
+  // slides trail the page.
   useEffect(() => {
     const section = sectionRef.current;
     const track = trackRef.current;
     if (!section || !track) return;
 
     const mm = gsap.matchMedia();
-    mm.add('(min-width: 769px)', () => {
+    mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
       const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
       gsap.to(track, {
@@ -45,7 +45,7 @@ export default function TeamSection() {
     });
 
     return () => mm.revert();
-  }, [prefersReducedMotion]);
+  }, []);
 
   // Run the decorative hint animation only while the section is on screen; an endless CSS
   // animation otherwise keeps the browser rendering a frame every vsync for the whole visit.
