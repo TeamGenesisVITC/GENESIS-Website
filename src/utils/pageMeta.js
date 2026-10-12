@@ -1,64 +1,64 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import {
+  DEFAULT_ROBOTS,
+  NOT_FOUND_META,
+  canonicalUrl,
+  getRouteMeta,
+  normalizePath,
+} from '../routes/meta';
 
-const SITE_URL = 'https://www.teamgenesisvitc.in';
+// Route metadata lives in src/routes/meta.js. The build also bakes it into one HTML file per
+// route (see scripts/prerender-routes.mjs); this hook keeps <head> correct after client-side
+// navigation. Unknown paths get the NOT_FOUND metadata, robots "noindex" and no canonical URL.
 
-const DEFAULT_META = {
-  title: 'Team Genesis | Humanoid Robotics Team of VIT Chennai',
-  description:
-    'Team Genesis is the student humanoid robotics team of VIT Chennai, designing and building bipedal humanoid robots across mechanical, electrical, and software and AI disciplines.',
-};
+/** Set (or create) a <meta> tag; remove it when content is null. */
+function setMetaTag(attr, key, content) {
+  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (content == null) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, key);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', content);
+}
 
-// Per-route title and description. Keep in sync with public/sitemap.xml.
-const ROUTE_META = {
-  '/': DEFAULT_META,
-  '/robo-hi': {
-    title: 'Meet the Team | Team Genesis VIT Chennai',
-    description:
-      'Meet the people behind Team Genesis, the humanoid robotics team of VIT Chennai, and explore our mechanical, electrical, software and AI, and leadership departments.',
-  },
-  '/team/leads': {
-    title: 'Leads | Team Genesis VIT Chennai',
-    description:
-      'The leads of Team Genesis, VIT Chennai, who connect ideas, people, and departments to drive humanoid robot development.',
-  },
-  '/team/mechanical': {
-    title: 'Mechanical and Design | Team Genesis VIT Chennai',
-    description:
-      'The Mechanical and Design department of Team Genesis, VIT Chennai, building the structure, actuation, and CAD of our humanoid robots.',
-  },
-  '/team/electrical': {
-    title: 'Electrical and Control Systems | Team Genesis VIT Chennai',
-    description:
-      'The Electrical and Control Systems department of Team Genesis, VIT Chennai, designing power, embedded electronics, and motor control for our humanoid robots.',
-  },
-  '/team/software': {
-    title: 'Software and AI | Team Genesis VIT Chennai',
-    description:
-      'The Software and AI department of Team Genesis, VIT Chennai, developing perception, locomotion control, and embodied AI for our humanoid robots.',
-  },
-};
-
-function setMeta(selector, attr, value) {
-  const el = document.head.querySelector(selector);
-  if (el) el.setAttribute(attr, value);
+/** Set (or create) <link rel="canonical">; remove it when href is null. */
+function setCanonical(href) {
+  let el = document.head.querySelector('link[rel="canonical"]');
+  if (href == null) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('link');
+    el.setAttribute('rel', 'canonical');
+    document.head.appendChild(el);
+  }
+  el.setAttribute('href', href);
 }
 
 export function usePageMeta() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-    const meta = ROUTE_META[path] || DEFAULT_META;
-    const url = `${SITE_URL}${path === '/' ? '/' : path}`;
+    const path = normalizePath(pathname);
+    const routeMeta = getRouteMeta(path);
+    const meta = routeMeta ?? NOT_FOUND_META;
+    const url = routeMeta ? canonicalUrl(path) : null;
 
     document.title = meta.title;
-    setMeta('meta[name="description"]', 'content', meta.description);
-    setMeta('link[rel="canonical"]', 'href', url);
-    setMeta('meta[property="og:title"]', 'content', meta.title);
-    setMeta('meta[property="og:description"]', 'content', meta.description);
-    setMeta('meta[property="og:url"]', 'content', url);
-    setMeta('meta[name="twitter:title"]', 'content', meta.title);
-    setMeta('meta[name="twitter:description"]', 'content', meta.description);
+    setMetaTag('name', 'description', meta.description);
+    setMetaTag('name', 'robots', routeMeta ? DEFAULT_ROBOTS : NOT_FOUND_META.robots);
+    setCanonical(url);
+    setMetaTag('property', 'og:title', meta.title);
+    setMetaTag('property', 'og:description', meta.description);
+    setMetaTag('property', 'og:url', url);
+    setMetaTag('name', 'twitter:title', meta.title);
+    setMetaTag('name', 'twitter:description', meta.description);
   }, [pathname]);
 }

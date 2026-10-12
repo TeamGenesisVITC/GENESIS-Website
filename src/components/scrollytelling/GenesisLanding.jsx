@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Lenis from 'lenis';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
 
+import PrefetchLink from '../PrefetchLink';
 import Navbar from './Navbar';
 import ScrollCanvas from './ScrollCanvas';
-import StoryBeat, { beatItemVariants } from './StoryBeat';
+import StoryBeat from './StoryBeat';
 import HeroHeadline from './HeroHeadline';
 import HeroPoints from './HeroPoints';
 import ProjectsSection from './ProjectsSection';
 import TeamSection from './TeamSection';
 import './GenesisLanding.css';
-
-gsap.registerPlugin(ScrollTrigger);
 
 
 /**
@@ -81,34 +77,18 @@ function AnimatedMetric({ targetValue, suffix = '', label }) {
 export default function GenesisLanding() {
   const containerRef = useRef(null);
   const targetProgressRef = useRef(0);
-  const lenisRef = useRef(null);
   const [activeBeat, setActiveBeat] = useState(0);
+  const activeBeatRef = useRef(0);
   const [legalModal, setLegalModal] = useState(null); // 'tos' | 'privacy' | 'charter' | null
+  const prefersReducedMotion = useReducedMotion();
+  const legalTriggerRef = useRef(null);
+  const legalCloseRef = useRef(null);
 
-  // Initialize Lenis smooth scroll engine
+  // Native scrolling. The browser scrolls on its compositor thread, so input moves the page
+  // with no JavaScript in the path (no wheel interception, no smoothing library). Everything
+  // scroll-linked reads the position from this passive listener and follows it exactly.
   useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => 1 - Math.pow(1 - t, 3), // Clean easeOutCubic
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      syncTouch: true,
-      wheelMultiplier: 0.6,
-      touchMultiplier: 1.0,
-    });
-
-    lenisRef.current = lenis;
-
-    const tickerCallback = (time) => {
-      lenis.raf(time * 1000);
-    };
-    // Prioritized so Lenis updates scroll before ScrollCanvas renders in the same tick
-    gsap.ticker.add(tickerCallback, false, true);
-    gsap.ticker.lagSmoothing(0);
-    lenis.on('scroll', ScrollTrigger.update);
-
-    lenis.on('scroll', () => {
+    const onScroll = () => {
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
@@ -119,100 +99,137 @@ export default function GenesisLanding() {
       targetProgressRef.current = progress;
 
       // Determine active storytelling beat in the 5-beat flagship showcase
-      let beat = 0;
-      if (progress < 0.21) beat = 0;
-      else if (progress < 0.45) beat = 1;
-      else if (progress < 0.69) beat = 2;
-      else if (progress < 0.87) beat = 3;
-      else beat = 4;
+      const beat = progress < 0.21 ? 0 : progress < 0.45 ? 1 : progress < 0.69 ? 2 : progress < 0.87 ? 3 : 4;
 
-      setActiveBeat((prev) => (prev !== beat ? beat : prev));
-    });
+      // Only touch React state when the beat changes: a setState call on every scroll event
+      // (even with an unchanged value) can still schedule a React render task per frame.
+      if (beat !== activeBeatRef.current) {
+        activeBeatRef.current = beat;
+        setActiveBeat(beat);
+      }
+    };
 
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
     return () => {
-      gsap.ticker.remove(tickerCallback);
-      lenis.destroy();
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
   }, []);
 
-  // Smooth jump to DOM sections
+  // Legal dialog: Escape closes it, focus moves into it and back to the trigger,
+  // and the page behind stops scrolling while it is open.
+  useEffect(() => {
+    if (!legalModal) return undefined;
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    const previousGutter = root.style.scrollbarGutter;
+    root.style.scrollbarGutter = 'stable'; // no layout shift when the scrollbar hides
+    root.style.overflow = 'hidden';
+    if (legalCloseRef.current) legalCloseRef.current.focus();
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setLegalModal(null);
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      // Keep Tab inside the dialog (close button <-> scrollable text).
+      const panel = legalCloseRef.current && legalCloseRef.current.closest('[role="dialog"]');
+      if (!panel) return;
+      const focusables = panel.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      root.style.overflow = previousOverflow;
+      root.style.scrollbarGutter = previousGutter;
+      if (legalTriggerRef.current) legalTriggerRef.current.focus();
+    };
+  }, [legalModal]);
+
+  const openLegalModal = (kind, e) => {
+    legalTriggerRef.current = e.currentTarget;
+    setLegalModal(kind);
+  };
+
+  // Smooth jump to DOM sections (instant when the user prefers reduced motion).
+  // Focus follows the jump so keyboard and screen-reader users continue from there.
   const scrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
-    if (!el || !lenisRef.current) return;
-    lenisRef.current.scrollTo(el, { duration: 1.4, offset: -50 });
+    if (!el) return;
+    window.scrollTo({
+      top: el.getBoundingClientRect().top + window.scrollY - 50,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
+    if (el.tabIndex === -1) el.focus({ preventScroll: true });
   };
 
   return (
     <div className="genesis-landing">
       
-      {/* ── 1. STUDIO HIGHLIGHT (Soft Overhead Pure White Lighting on Metal) ── */}
-      <div 
-        aria-hidden="true" 
-        className="pointer-events-none fixed inset-0 z-0" 
-        style={{
-          background: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 70%)',
-        }}
-      />
-
-      {/* ── 2. PHYSICAL TEXTURE (Sandblasted Anodized Aluminum SVG Grain) ── */}
-      <div 
-        aria-hidden="true" 
-        className="textured-silver-grain pointer-events-none"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 0,
-          opacity: 0.4,
-          mixBlendMode: 'overlay',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-        }}
-      />
+      {/* ── 1+2. STUDIO BACKDROP: brushed-silver gradient, soft overhead highlight and
+          anodized grain, composed once into a single static fixed layer (.landing-backdrop) ── */}
+      <div aria-hidden="true" className="landing-backdrop" />
 
       {/* ── 3. INTERACTIVE FOREGROUND & CONTENT CONTAINER ── */}
       <div style={{ position: 'relative', zIndex: 10, width: '100%' }}>
         {/* Fixed Hardware Top Navigation */}
         <Navbar onNavigateToSection={scrollToSection} />
 
+        <main id="main-content" tabIndex={-1}>
         {/* ══════════════════════════════════════════════════════════
            ACT I: HARDWARE MONOGRAPH & LAB ORIGINS
            ══════════════════════════════════════════════════════════ */}
 
 
         {/* ── HERO SECTION ──────────────────────────────────────────── */}
-        <section id="hero-section" className="mono-section hero-masthead" style={{ position: 'relative', overflow: 'hidden' }}>
+        <section id="hero-section" tabIndex={-1} className="mono-section hero-masthead" style={{ position: 'relative', overflow: 'hidden' }}>
           <div className="mono-container" style={{ position: 'relative', zIndex: 2 }}>
 
           {/* Eyebrow Label */}
-          <motion.div
+          <m.div
             className="hero-eyebrow font-mono"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
             STUDENT-LED HUMANOID ROBOTICS TEAM · VIT CHENNAI
-          </motion.div>
+          </m.div>
 
           {/* Main Hero Headline with Interactive Full-Wordmark Hover [FIX 2] */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mb-8 block"
           >
             <HeroHeadline text="TEAM GENESIS" />
-          </motion.div>
+          </m.div>
 
           {/* Monochrome Lucide Bullet List with 8-pt Grid Spacing */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
           >
             <HeroPoints />
-          </motion.div>
+          </m.div>
 
           {/* Action Row */}
-          <motion.div
+          <m.div
             className="hero-action-row"
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -230,37 +247,62 @@ export default function GenesisLanding() {
             >
               Partnership &amp; Dossier&nbsp;→
             </button>
-          </motion.div>
+          </m.div>
 
           <div aria-hidden="true" style={{ height: '240px', width: '100%' }} />
 
           </div>
 
           {/* ── Robot Illustration - Right Side ── */}
-          <motion.div
+          <m.div
             className="hero-robot-wrap"
             initial={{ opacity: 0, x: 60 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            aria-hidden="true"
           >
-            <img
-              src="/robot-hero.png"
-              alt="Team Genesis Humanoid Robot"
-              className="hero-robot-img"
-            />
-          </motion.div>
+            {/* The wrapper is a fixed 1300px-wide box (hidden at <=768px), so the
+                image never drives layout. Below 768px a 1x1 GIF source stops the
+                hidden image from downloading at all. Above that, the browser picks
+                AVIF, then WebP, then the original PNG. */}
+            <picture>
+              <source
+                media="(max-width: 768px)"
+                srcSet="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+              />
+              <source
+                type="image/avif"
+                srcSet="/robot-hero-960.avif 960w, /robot-hero.avif 1920w"
+                sizes="1300px"
+              />
+              <source
+                type="image/webp"
+                srcSet="/robot-hero-960.webp 960w, /robot-hero.webp 1920w"
+                sizes="1300px"
+              />
+              <img
+                src="/robot-hero.png"
+                alt="Team Genesis bipedal humanoid robot"
+                className="hero-robot-img"
+                width="2752"
+                height="1536"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
+              />
+            </picture>
+          </m.div>
 
         </section>
 
       {/* 2. ORIGINS & LAB FOUNDATION */}
-      <section id="origins-section" className="mono-section mono-section--bordered">
+      <section id="origins-section" tabIndex={-1} className="mono-section mono-section--bordered">
         <div className="mono-container">
           <div className="section-eyebrow-tag font-mono">01 · ORIGINS &amp; ETHOS</div>
 
           <div className="monograph-split">
             <div className="monograph-heading-col">
-              <div className="font-mono" style={{ marginBottom: '0.75rem', color: '#8b8f98', letterSpacing: '0.08em', fontSize: '0.72rem', lineHeight: 1.5, fontWeight: 700 }}>
+              {/* color was #8b8f98 (2.7:1 on silver); #63636B keeps it dimmer than the labels at 5:1 */}
+              <div className="font-mono" style={{ marginBottom: '0.75rem', color: '#63636B', letterSpacing: '0.08em', fontSize: '0.72rem', lineHeight: 1.5, fontWeight: 700 }}>
                 {'/* est. 2025 · 50+ engineers · 03 disciplines */'}
               </div>
               <h2 className="monograph-title font-cabinet">
@@ -308,7 +350,7 @@ export default function GenesisLanding() {
 
 
       {/* 3. STRATEGIC VISION & RESEARCH THESIS */}
-      <section id="vision-section" className="mono-section mono-section--bordered">
+      <section id="vision-section" tabIndex={-1} className="mono-section mono-section--bordered">
         <div className="mono-container">
           <div className="section-eyebrow-tag font-mono">02 · RESEARCH THESIS &amp; OBJECTIVES</div>
           <h2 className="monograph-title font-cabinet">Core engineering theses</h2>
@@ -381,29 +423,29 @@ export default function GenesisLanding() {
       {/* ══════════════════════════════════════════════════════════
          ACT II: FLAGSHIP SCROLLYTELLING CANVAS (5-BEAT SEQUENCE)
          ══════════════════════════════════════════════════════════ */}
-      <div id="flagship-section" className="canvas-section" ref={containerRef}>
+      <div id="flagship-section" tabIndex={-1} className="canvas-section" ref={containerRef}>
         <div className="canvas-sticky">
-          
+
           {/* Hardware Inspection Scrollytelling Canvas */}
-          <ScrollCanvas targetProgressRef={targetProgressRef} />
+          <ScrollCanvas targetProgressRef={targetProgressRef} reducedMotion={prefersReducedMotion} />
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
           <StoryBeat id="beat-mechanical" visible={activeBeat === 0} align="right">
-            <motion.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 01</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">MEET OUR CURRENT FLAGSHIP · PROJECT KP-17</span>
-            </motion.div>
+            </div>
 
-            <motion.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Meet KP-17.<br />Our first bipedal platform.
-            </motion.h2>
+            </h2>
 
-            <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               KP-17 is Team Genesis's initial physical research platform. Built upon an accessible 17-DOF humanoid kinematic frame, our engineering objective is bringing the hardware to life: integrating custom sensor feedback architectures, low-latency electronics, and closed-loop self-balancing software.
-            </motion.p>
+            </p>
 
-            <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -418,26 +460,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">An accessible anodized aluminum chassis serving as our testbed for sensor fusion and balance algorithms.</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 02: Powertrain & Joint Actuation (20–45% Progress) ── */}
           <StoryBeat id="beat-actuation" visible={activeBeat === 1} align="left">
-            <motion.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 02</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">JOINT POWERTRAIN &amp; ACTUATION</span>
-            </motion.div>
+            </div>
 
-            <motion.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               High-torque joint actuation<br />&amp; position tracking.
-            </motion.h2>
+            </h2>
 
-            <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               Each joint incorporates high-torque digital actuators with precision metal reduction gearing, delivering the requisite joint torque and speed for multi-axis limb positioning and dynamic stance control.
-            </motion.p>
+            </p>
 
-            <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -452,26 +494,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Continuous angular position tracking feeding real-time joint state into the kinematics engine.</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 03: Sensor Feedback Architecture (45–70% Progress) ── */}
           <StoryBeat id="beat-electrical" visible={activeBeat === 2} align="right">
-            <motion.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 03</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">SENSOR FEEDBACK &amp; ELECTRONICS</span>
-            </motion.div>
+            </div>
 
-            <motion.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Sensor feedback architecture<br />&amp; real-time bus.
-            </motion.h2>
+            </h2>
 
-            <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               We are actively developing KP-17's comprehensive sensor feedback architecture, fusing 6-axis IMUs, foot ground-contact sensors, and joint current monitors across a deterministic high-speed CAN-FD communication bus.
-            </motion.p>
+            </p>
 
-            <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -486,26 +528,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Dedicated high-current actuator power rails separated from sensitive compute electronics.</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 04: Software & Self-Balancing Control (70–88% Progress) ── */}
           <StoryBeat id="beat-software" visible={activeBeat === 3} align="left">
-            <motion.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 04</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">SOFTWARE &amp; SELF-BALANCING CONTROL</span>
-            </motion.div>
+            </div>
 
-            <motion.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Bringing hardware to life<br />with self-balancing control.
-            </motion.h2>
+            </h2>
 
-            <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               Our primary software sprint focuses on closing the autonomous balance loop. We are implementing dynamic Zero-Moment Point (ZMP) control, whole-body Model Predictive Control (MPC), and sim-to-real reinforcement learning policies to achieve true self-balancing autonomy.
-            </motion.p>
+            </p>
 
-            <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -520,26 +562,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Locomotion neural networks trained in physics simulation (Isaac Sim / MuJoCo) before physical transfer.</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 05: Foundation for Scale (88–100% Progress) ── */}
           <StoryBeat id="beat-platform" visible={activeBeat === 4} align="right">
-            <motion.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 05</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">THE RESEARCH FOUNDATION</span>
-            </motion.div>
+            </div>
 
-            <motion.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               The physical foundation for<br />all future Genesis bots.
-            </motion.h2>
+            </h2>
 
-            <motion.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               KP-17 is where we test theories, validate electronics, and refine algorithms. The engineering breakthroughs achieved on this platform form the foundation for all upcoming platforms like Project RKP and our competition fleet.
-            </motion.p>
+            </p>
 
-            <motion.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -554,11 +596,11 @@ export default function GenesisLanding() {
                   <span className="spec-desc">A unified software codebase designed to scale across different humanoid morphologies.</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div className="flagship-exit-hint font-mono" variants={beatItemVariants}>
+            <div className="flagship-exit-hint font-mono beat-item">
               <span>SCROLL DOWN · EXPLORE PARALLEL R&amp;D PIPELINES ↓</span>
-            </motion.div>
+            </div>
           </StoryBeat>
 
         </div>
@@ -571,7 +613,7 @@ export default function GenesisLanding() {
       <TeamSection />
 
       {/* ACT III: ENTERPRISE PARTNERSHIPS & TECHNICAL DOSSIER */}
-      <section id="invest-section" className="mono-section mono-section--bordered">
+      <section id="invest-section" tabIndex={-1} className="mono-section mono-section--bordered">
         <div className="mono-container">
           <div className="hero-eyebrow font-satoshi">Sponsorship</div>
           <h2 className="monograph-title font-cabinet">Fuel the next generation<br />of hardware engineers.</h2>
@@ -636,6 +678,7 @@ export default function GenesisLanding() {
           </div>
         </div>
       </section>
+      </main>
 
       {/* INSTITUTIONAL FOOTER */}
       <footer className="genesis-footer">
@@ -650,22 +693,24 @@ export default function GenesisLanding() {
               </p>
             </div>
 
-            <div className="footer-nav-col">
+            <nav className="footer-nav-col" aria-label="Page sections">
               <span className="footer-col-title">Navigation</span>
               <a href="#hero-section" onClick={(e) => { e.preventDefault(); scrollToSection('hero-section'); }}>Overview</a>
               <a href="#origins-section" onClick={(e) => { e.preventDefault(); scrollToSection('origins-section'); }}>Origins</a>
               <a href="#vision-section" onClick={(e) => { e.preventDefault(); scrollToSection('vision-section'); }}>Research</a>
               <a href="#flagship-section" onClick={(e) => { e.preventDefault(); scrollToSection('flagship-section'); }}>Hardware</a>
               <a href="#invest-section" onClick={(e) => { e.preventDefault(); scrollToSection('invest-section'); }}>Collaborate</a>
-            </div>
+            </nav>
 
-            <div className="footer-nav-col">
+            {/* Client-side links: no full page reload, and the team chunk is
+                prefetched on hover/focus/touch. */}
+            <nav className="footer-nav-col" aria-label="Team disciplines">
               <span className="footer-col-title">Disciplines</span>
-              <a href="/team/mechanical">Mechanical and Structures</a>
-              <a href="/team/electrical">Power and Embedded Bus</a>
-              <a href="/team/software">Embodied AI and Controls</a>
-              <a href="/team/leads">Executive Leadership</a>
-            </div>
+              <PrefetchLink to="/team/mechanical">Mechanical and Structures</PrefetchLink>
+              <PrefetchLink to="/team/electrical">Power and Embedded Bus</PrefetchLink>
+              <PrefetchLink to="/team/software">Embodied AI and Controls</PrefetchLink>
+              <PrefetchLink to="/team/leads">Executive Leadership</PrefetchLink>
+            </nav>
 
             <div className="footer-nav-col">
               <span className="footer-col-title">Contact</span>
@@ -681,15 +726,15 @@ export default function GenesisLanding() {
               © {new Date().getFullYear()} Team Genesis, VIT Chennai. All rights reserved.
             </span>
             <div className="footer-legal-links">
-              <button className="legal-link-btn font-satoshi" onClick={() => setLegalModal('tos')}>
+              <button type="button" className="legal-link-btn font-satoshi" aria-haspopup="dialog" onClick={(e) => openLegalModal('tos', e)}>
                 Terms of Service
               </button>
-              <span>/</span>
-              <button className="legal-link-btn font-satoshi" onClick={() => setLegalModal('privacy')}>
+              <span aria-hidden="true">/</span>
+              <button type="button" className="legal-link-btn font-satoshi" aria-haspopup="dialog" onClick={(e) => openLegalModal('privacy', e)}>
                 Privacy Policy
               </button>
-              <span>/</span>
-              <button className="legal-link-btn font-satoshi" onClick={() => setLegalModal('charter')}>
+              <span aria-hidden="true">/</span>
+              <button type="button" className="legal-link-btn font-satoshi" aria-haspopup="dialog" onClick={(e) => openLegalModal('charter', e)}>
                 Academic Charter
               </button>
             </div>
@@ -702,15 +747,18 @@ export default function GenesisLanding() {
          ══════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {legalModal && (
-          <motion.div 
+          <m.div 
             className="legal-modal-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setLegalModal(null)}
           >
-            <motion.div 
+            <m.div
               className="legal-modal-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="legal-modal-title"
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.98, opacity: 0 }}
@@ -719,15 +767,22 @@ export default function GenesisLanding() {
             >
               <div className="modal-header-bar font-mono">
                 <span>LEGAL DOCUMENTATION // {legalModal.toUpperCase()}</span>
-                <button className="modal-close-btn font-mono" onClick={() => setLegalModal(null)}>
+                <button
+                  ref={legalCloseRef}
+                  type="button"
+                  className="modal-close-btn font-mono"
+                  aria-label="Close dialog"
+                  onClick={() => setLegalModal(null)}
+                >
                   [X] CLOSE
                 </button>
               </div>
 
-              <div className="modal-body-scroll">
+              {/* The page behind is locked (overflow hidden), so the wheel scrolls this panel. */}
+              <div className="modal-body-scroll" tabIndex={0}>
                 {legalModal === 'tos' && (
                   <div className="legal-content font-mono">
-                    <h3 className="legal-heading font-cabinet">TERMS OF SERVICE</h3>
+                    <h3 id="legal-modal-title" className="legal-heading font-cabinet">TERMS OF SERVICE</h3>
                     <p>LAST UPDATED: 2026</p>
                     <p>1. ACCEPTANCE OF TERMS</p>
                     <p>By accessing the Team Genesis portal or requesting confidential hardware specifications, you agree to comply with all applicable academic, intellectual property, and defense export regulations.</p>
@@ -740,7 +795,7 @@ export default function GenesisLanding() {
 
                 {legalModal === 'privacy' && (
                   <div className="legal-content font-mono">
-                    <h3 className="legal-heading font-cabinet">PRIVACY POLICY</h3>
+                    <h3 id="legal-modal-title" className="legal-heading font-cabinet">PRIVACY POLICY</h3>
                     <p>LAST UPDATED: 2026</p>
                     <p>1. DATA COLLECTION</p>
                     <p>Team Genesis collects communication data submitted solely for the purpose of enterprise evaluation, technical dossier distribution, and sponsorship inquiries.</p>
@@ -751,14 +806,14 @@ export default function GenesisLanding() {
 
                 {legalModal === 'charter' && (
                   <div className="legal-content font-mono">
-                    <h3 className="legal-heading font-cabinet">ACADEMIC RESEARCH CHARTER</h3>
+                    <h3 id="legal-modal-title" className="legal-heading font-cabinet">ACADEMIC RESEARCH CHARTER</h3>
                     <p>TEAM GENESIS OPERATES UNDER THE RESEARCH AUSPICES OF VELLORE INSTITUTE OF TECHNOLOGY (VIT) CHENNAI.</p>
                     <p>Our mandate is to pioneer open and sponsored scientific advancements in autonomous physical intelligence, bio-inspired robotic kinematics, and robust power systems.</p>
                   </div>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
       </AnimatePresence>
       </div>

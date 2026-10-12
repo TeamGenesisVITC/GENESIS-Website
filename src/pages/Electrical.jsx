@@ -1,33 +1,21 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import './Electrical.css';
 import electricalBg from '../assets/images/electrical-bg.png';
+import electricalBgAvif from '../assets/images/electrical-bg.avif';
+import electricalBgWebp from '../assets/images/electrical-bg.webp';
+import { TeamBackdrop, BackToTeamLink } from './TeamPageChrome';
 import DepartmentPathway from '../components/DepartmentPathway';
 import { electricalMembers } from '../data/electricalMembers';
 
 function Electrical() {
-  const navigate = useNavigate();
-
   return (
     <div className="electrical-page">
-      {/* Neon Grid Background */}
-      <div className="neon-grid"></div>
+      <TeamBackdrop avif={electricalBgAvif} webp={electricalBgWebp} png={electricalBg} width={1440} height={1024} />
 
-      {/* Background Image */}
-      <div className="hero-background">
-        <img src={electricalBg} alt="" />
-      </div>
-
-      {/* Back Button */}
-      <button className="back-button" onClick={() => navigate('/robo-hi')}>
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        Back
-      </button>
+      <BackToTeamLink />
 
       {/* Main Content */}
-      <div className="department-layout">
+      <main id="main-content" tabIndex={-1} className="department-layout">
         {/* Header Section - Full Width */}
         <div className="header-section">
           <div className="title-badge">
@@ -63,7 +51,7 @@ function Electrical() {
             <DepartmentPathway members={electricalMembers} />
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

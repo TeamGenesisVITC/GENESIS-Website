@@ -1,44 +1,84 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { leadsMembers, coFounders, legacyLeads, legacyMembers } from '../../data/leadsMembers';
 import { managementMembers } from '../../data/managementMembers';
 import { mechanicalMembers } from '../../data/mechanicalMembers';
 import { electricalMembers } from '../../data/electricalMembers';
 import { softwareMembers } from '../../data/softwareMembers';
+import loadScrollTrigger from './loadScrollTrigger';
 
-gsap.registerPlugin(ScrollTrigger);
+// Where CSS scroll-driven animations exist, GenesisLanding.css moves the track ("team-hscroll"
+// keyframes on a view timeline): the compositor applies it in the same frame as the scroll, with
+// no main-thread work per frame. GSAP drives the track only where they are unsupported.
+// Keep this test identical to the @supports condition in the CSS.
+const CSS_SCROLL_TIMELINE =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: view()');
 
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
   const [hoveredMember, setHoveredMember] = useState(null);
 
-  // GSAP Pinned Horizontal Scroll
+  // The CSS sizes the scroll distance (and the track's travel) from the slide count.
+  useLayoutEffect(() => {
+    const section = sectionRef.current;
+    const track = trackRef.current;
+    if (section && track) section.style.setProperty('--team-slides', String(track.children.length));
+  }, []);
+
+  // GSAP Pinned Horizontal Scroll (tablet/desktop, motion allowed). On phones the slides are
+  // taller than the viewport, so pinning them clipped most of the roster; there, and for
+  // visitors who asked for reduced motion, the CSS stacks the slides vertically instead.
+  // gsap.matchMedia reverts and re-applies automatically when either condition changes.
+  // The track follows the scroll position 1:1 (scrub: true): a catch-up delay made the
+  // slides trail the page.
   useEffect(() => {
     const section = sectionRef.current;
     const track = trackRef.current;
-    if (!section || !track) return;
+    if (!section || !track || CSS_SCROLL_TIMELINE) return undefined;
 
-    const ctx = gsap.context(() => {
-      const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
+    let cancelled = false;
+    let mm = null;
+    loadScrollTrigger().then(({ gsap }) => {
+      if (cancelled) return;
+      mm = gsap.matchMedia();
+      mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
+        const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
-      gsap.to(track, {
-        x: getScrollAmount,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: section,
-          start: 'top top',
-          end: () => `+=${track.scrollWidth - window.innerWidth}`,
-          scrub: 0.8,
-          pin: true,
-          anticipatePin: 1,
-          invalidateOnRefresh: true,
-        },
+        gsap.to(track, {
+          x: getScrollAmount,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top top',
+            end: () => `+=${track.scrollWidth - window.innerWidth}`,
+            scrub: true,
+            pin: true,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+          },
+        });
       });
-    }, section);
+    }).catch((error) => {
+      // The first slide stays visible; the rest of the roster is on the department pages.
+      console.warn('[TeamSection] horizontal scroll unavailable:', error);
+    });
 
-    return () => ctx.revert();
+    return () => {
+      cancelled = true;
+      if (mm) mm.revert();
+    };
+  }, []);
+
+  // Run the decorative hint animation only while the section is on screen; an endless CSS
+  // animation otherwise keeps the browser rendering a frame every vsync for the whole visit.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver !== 'function') return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      section.classList.toggle('is-onscreen', entry.isIntersecting);
+    });
+    observer.observe(section);
+    return () => observer.disconnect();
   }, []);
 
   // Filter department leads
@@ -106,6 +146,10 @@ export default function TeamSection() {
                     sizes="(max-width: 1024px) 100vw, 560px"
                     alt="The full Team Genesis roster at VIT Chennai"
                     className="media-photo-img media-photo-img--team"
+                    width="800"
+                    height="600"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="media-photo-overlay" />
                   <div className="media-photo-caption font-mono">

@@ -76,6 +76,23 @@
   position: relative;
 }
 
+/* Members with quotes render as <button>: strip the native button chrome so they look
+   exactly like the original <div> rows (border-left is kept for the hover/selected rail). */
+button.name-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  background: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  font: inherit;
+  color: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 /* Subtle tick/notch connecting to the rail */
 .name-item::before {
   content: '';

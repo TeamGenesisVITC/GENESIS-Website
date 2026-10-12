@@ -2,6 +2,28 @@
   "name": "team-genesis-website",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "build:atlases": "node scripts/generate-atlases.js --scale=0.5",
+    "cf-typegen": "wrangler types",
+    "deploy": "npm run build && wrangler deploy",
+    "perf:measure": "node scripts/perf/measure.mjs",
+    "perf:check": "node scripts/perf/envelope.mjs",
+    "perf:ux": "node scripts/perf/ux.mjs",
+    "perf:preview": "node scripts/perf/linkpreview.mjs",
+    "perf:compare": "node scripts/perf/compare.mjs",
+    "serve": "node scripts/serve.mjs",
+    "perf:scroll": "node scripts/perf/scroll.mjs",
+    "perf:scroll:compare": "node scripts/perf/scroll.mjs --compare",
+    "perf:shot": "node scripts/perf/shot.mjs",
+    "perf:test": "node scripts/perf/lib/static-server.test.mjs"
+  },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
@@ -14,35 +36,19 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
-    "react-scripts": "5.0.1",
     "scrolly-video": "^0.0.24",
     "three": "^0.160.1"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "build:atlases": "node scripts/generate-atlases.js",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
   "devDependencies": {
-    "sharp": "^0.35.4"
+    "@cloudflare/vite-plugin": "^1.63.1",
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "sharp": "^0.35.4",
+    "vite": "^8.3.4",
+    "wrangler": "^4.149.0"
   }
 }

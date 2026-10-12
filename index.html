@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Title, description, robots, canonical, og:* and twitter:* below are the defaults for "/".
+      At build time scripts/prerender-routes.mjs rewrites them for every route listed in
+      src/routes/meta.js (and for 404.html), so keep these tags and their attribute order.
+    -->
+    <title>Team Genesis | Humanoid Robotics Team of VIT Chennai</title>
+    <meta name="theme-color" content="#F7F7F8" />
+    <meta name="description" content="Team Genesis is the student humanoid robotics team of VIT Chennai, designing and building bipedal humanoid robots across mechanical, electrical, and software and AI disciplines." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://www.teamgenesisvitc.in/" />
+
+    <!--
+      Fonts. Preconnect to the stylesheet hosts without crossorigin (stylesheets are no-cors
+      requests) and to the font-file hosts with crossorigin (font files are always CORS),
+      otherwise the browser opens a second connection and the preconnect is wasted.
+    -->
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Cabinet Grotesk 900: the large preloader counter and hero headline on "/" (the LCP text).
+      URL copied from the Fontshare Cabinet Grotesk stylesheet below; update it if Fontshare
+      changes it. data-home-only: removed from every other route's HTML at build time.
+    -->
+    <link rel="preload" href="https://cdn.fontshare.com/wf/54BYDK52GK4J6SPDN2E656FIZHUETKL3/ACYE4XDNEUAHIOQEOGPYPDVAVDI5P67Q/TZVUWRP4UW5PEJWBLXHG5VVGPODI2WLC.woff2" as="font" type="font/woff2" crossorigin data-home-only />
+    <!--
+      Fontshare: Cabinet Grotesk and Satoshi, one stylesheet per family. The combined
+      ?f[]=cabinet-grotesk@...&f[]=satoshi@...&display=swap URL is served from Fontshare's CDN
+      cache with only the first family, so Satoshi never loaded.
+    -->
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800,900&display=swap" />
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" />
+    <!-- Google Fonts: JetBrains Mono -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Team Genesis" />
+    <meta property="og:title" content="Team Genesis | Humanoid Robotics Team of VIT Chennai" />
+    <meta property="og:description" content="Student humanoid robotics team of VIT Chennai, designing and building bipedal humanoid robots." />
+    <meta property="og:url" content="https://www.teamgenesisvitc.in/" />
+    <meta property="og:image" content="https://www.teamgenesisvitc.in/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Team Genesis humanoid robot" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Team Genesis | Humanoid Robotics Team of VIT Chennai" />
+    <meta name="twitter:description" content="Student humanoid robotics team of VIT Chennai, designing and building bipedal humanoid robots." />
+    <meta name="twitter:image" content="https://www.teamgenesisvitc.in/og-image.jpg" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Team Genesis",
+        "alternateName": "Team Genesis VIT Chennai",
+        "url": "https://www.teamgenesisvitc.in/",
+        "logo": "https://www.teamgenesisvitc.in/genesis-logo.png",
+        "description": "Student humanoid robotics team of VIT Chennai.",
+        "email": "genesis.vitc@gmail.com",
+        "parentOrganization": {
+          "@type": "CollegeOrUniversity",
+          "name": "Vellore Institute of Technology, Chennai"
+        },
+        "sameAs": [
+          "https://www.linkedin.com/company/genesisvitc",
+          "https://www.instagram.com/genesis.vitc",
+          "https://github.com/TeamGenesisVITC"
+        ]
+      }
+    </script>
+
+    <!-- Favicons and manifest -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+  </head>
+  <body>
+    <noscript>
+      <h1>Team Genesis</h1>
+      <p>Team Genesis is the student humanoid robotics team of VIT Chennai, designing and building bipedal humanoid robots across mechanical, electrical, and software and AI disciplines.</p>
+      <ul>
+        <li><a href="/team/mechanical">Mechanical and Design</a></li>
+        <li><a href="/team/electrical">Electrical and Control Systems</a></li>
+        <li><a href="/team/software">Software and AI</a></li>
+        <li><a href="/team/leads">Leads</a></li>
+      </ul>
+      <p>Contact: <a href="mailto:genesis.vitc@gmail.com">genesis.vitc@gmail.com</a></p>
+      <p>You need to enable JavaScript to view the full site.</p>
+    </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

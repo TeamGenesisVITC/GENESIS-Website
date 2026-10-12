@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 
 const PROJECTS = [
   {
@@ -162,6 +162,8 @@ export default function ProjectsSection() {
 
                 <button
                   type="button"
+                  aria-pressed={isSelected}
+                  aria-controls="project-deep-panel"
                   className={`pcard-action-btn font-mono ${isSelected ? 'pcard-action-btn--selected' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -177,8 +179,9 @@ export default function ProjectsSection() {
 
         {/* ── Deep-Dive Interactive Specification Panel ── */}
         <AnimatePresence mode="wait">
-          <motion.div
+          <m.div
             key={selectedProj.id}
+            id="project-deep-panel"
             className="project-deep-panel"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -271,7 +274,7 @@ export default function ProjectsSection() {
               </div>
 
             </div>
-          </motion.div>
+          </m.div>
         </AnimatePresence>
 
       </div>

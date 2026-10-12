@@ -1,19 +1,28 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, useScroll, useSpring } from 'framer-motion';
+import { m, useScroll, useReducedMotion } from 'framer-motion';
+// 80x80 palette PNG (3.5 KB, smaller than AVIF/WebP + <picture> overhead at this size);
+// small enough that the bundler inlines it, so the logo costs no extra request.
+import logoPng from '../../assets/images/genesis-logo-80.png';
 
 /**
  * Editorial Interactive Scramble Link Component
  * [FIX 5]: Uses uppercase JetBrains Mono with 0.12em tracking aligned with the design system.
+ * The scramble is skipped when the user prefers reduced motion, and the accessible
+ * name stays the real label while the glyphs animate.
  */
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_';
 
-function ScrambleLink({ label, href, onClick }) {
+function ScrambleLink({ label, href, onClick, reduceMotion }) {
   const [displayText, setDisplayText] = useState(label);
   const intervalRef = useRef(null);
 
+  // Never leave an interval running after unmount.
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
   const handleMouseEnter = useCallback(() => {
+    if (reduceMotion) return;
     let iteration = 0;
     clearInterval(intervalRef.current);
 
@@ -34,7 +43,7 @@ function ScrambleLink({ label, href, onClick }) {
       }
       iteration += 1 / 2;
     }, 28);
-  }, [label]);
+  }, [label, reduceMotion]);
 
   const handleMouseLeave = useCallback(() => {
     clearInterval(intervalRef.current);
@@ -48,9 +57,10 @@ function ScrambleLink({ label, href, onClick }) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="nav-link-item"
+      aria-label={label}
     >
       {/* [FIX 5]: Tracked uppercase mono text matching eyebrow/telemetry system */}
-      <span className="nav-link-text font-mono uppercase tracking-[0.12em] text-xs">
+      <span className="nav-link-text font-mono uppercase tracking-[0.12em] text-xs" aria-hidden="true">
         {displayText}
       </span>
     </a>
@@ -60,13 +70,14 @@ function ScrambleLink({ label, href, onClick }) {
 /**
  * Magnetic CTA Button Component
  * [FIX 1]: Ghost/outline style with transparent fill so Hero's black pill is the only solid CTA.
+ * The magnetic pull is disabled when the user prefers reduced motion.
  */
-function MagneticButton({ children, href, onClick, className = '' }) {
+function MagneticButton({ children, href, onClick, className = '', reduceMotion }) {
   const btnRef = useRef(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
   const handleMouseMove = (e) => {
-    if (!btnRef.current) return;
+    if (reduceMotion || !btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -97,25 +108,34 @@ function MagneticButton({ children, href, onClick, className = '' }) {
   );
 }
 
+// CSS scroll-driven animations (Chrome/Edge 115+, Safari 26+). Firefox still has them behind a
+// flag, so it gets the JavaScript progress bar instead.
+const SCROLL_TIMELINE_SUPPORTED =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: scroll()');
+
+function JsProgressBar() {
+  const { scrollYProgress } = useScroll();
+  return <m.div aria-hidden="true" className="nav-purple-progress-bar" style={{ scaleX: scrollYProgress }} />;
+}
+
 /**
  * Top Navigation Bar with Persistent High-Tech Purple Scroll Progress Bar
  */
 export default function Navbar({ onNavigateToSection }) {
   const [scrolled, setScrolled] = useState(false);
-
-  // Dynamic Scroll Progress Bar using Framer Motion Spring
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 240,
-    damping: 30,
-    restDelta: 0.001,
-  });
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    // Only touch React state when the value flips (see GenesisLanding's scroll handler).
+    let last = null;
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      const next = window.scrollY > 20;
+      if (next === last) return;
+      last = next;
+      setScrolled(next);
     };
 
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -136,9 +156,13 @@ export default function Navbar({ onNavigateToSection }) {
           className="brand-anchor"
           onClick={(e) => handleNavClick(e, 'hero-section')}
         >
+          {/* 80px logo (was the 1024px, 546 KB /genesis-logo.png) rendered at 26px;
+              decorative because the wordmark next to it already names the link. */}
           <img
-            src="/genesis-logo.png"
-            alt="Team Genesis Logo"
+            src={logoPng}
+            alt=""
+            width="26"
+            height="26"
             className="brand-icon"
           />
           <div className="brand-copy">
@@ -148,26 +172,30 @@ export default function Navbar({ onNavigateToSection }) {
         </a>
 
         {/* Center: Editorial Interactive Navigation Links [FIX 5: font-mono container] */}
-        <nav className="nav-editorial-menu font-mono">
+        <nav className="nav-editorial-menu font-mono" aria-label="Primary">
           <ScrambleLink
             label="Origins"
             href="#origins-section"
             onClick={(e) => handleNavClick(e, 'origins-section')}
+            reduceMotion={reduceMotion}
           />
           <ScrambleLink
             label="Thesis"
             href="#vision-section"
             onClick={(e) => handleNavClick(e, 'vision-section')}
+            reduceMotion={reduceMotion}
           />
           <ScrambleLink
             label="Platform"
             href="#flagship-section"
             onClick={(e) => handleNavClick(e, 'flagship-section')}
+            reduceMotion={reduceMotion}
           />
           <ScrambleLink
             label="Dossier"
             href="#invest-section"
             onClick={(e) => handleNavClick(e, 'invest-section')}
+            reduceMotion={reduceMotion}
           />
         </nav>
 
@@ -177,6 +205,7 @@ export default function Navbar({ onNavigateToSection }) {
             href="#invest-section"
             onClick={(e) => handleNavClick(e, 'invest-section')}
             className="font-satoshi"
+            reduceMotion={reduceMotion}
           >
             Partner With Us
           </MagneticButton>
@@ -185,11 +214,12 @@ export default function Navbar({ onNavigateToSection }) {
 
       {/* ── HIGH-TECH PURPLE SCROLL PROGRESS BAR (UNDER NAVBAR) ── */}
       <div className="nav-progress-track">
-        <motion.div
-          aria-hidden="true"
-          className="nav-purple-progress-bar"
-          style={{ scaleX }}
-        />
+        {SCROLL_TIMELINE_SUPPORTED ? (
+          // Scroll-driven CSS animation: runs on the compositor, no JavaScript per frame.
+          <div aria-hidden="true" className="nav-purple-progress-bar nav-purple-progress-bar--css" />
+        ) : (
+          <JsProgressBar />
+        )}
       </div>
     </header>
   );

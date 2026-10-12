@@ -8,14 +8,16 @@
 
   --text-headline: #111113;     /* Carbon Black Headline: Cabinet Grotesk */
   --text-subcopy: #52525B;      /* Slate body copy: Satoshi */
-  --text-muted: #71717A;        /* Secondary microcopy */
+  /* Muted/steel text darkened slightly from #71717A (4.0:1 on #EAEAEF, 3.2:1 on #D1D1D6)
+     to #5E5E66 (5.4:1 / 4.2:1) so the small telemetry labels meet WCAG AA contrast. */
+  --text-muted: #5E5E66;        /* Secondary microcopy */
   --text-dim: #A1A1AA;          /* Subtle indicators */
 
   --border-zinc: #D4D4D8;       /* 1px Architectural hairline */
   --border-zinc-dark: #71717A;  /* Active/focused borders */
   --border-zinc-light: #E4E4E7; /* Light dividers */
 
-  --color-steel: #71717A;       /* Technical telemetry accent */
+  --color-steel: #5E5E66;       /* Technical telemetry accent */
   --color-accent: #27272A;
 
   /* Typography Suite */
@@ -31,8 +33,7 @@
 }
 
 .genesis-landing {
-  background-image: linear-gradient(135deg, #F5F5F7 0%, #EAEAEF 50%, #D1D1D6 100%);
-  background-attachment: fixed;
+  /* The page backdrop is drawn by .landing-backdrop (a fixed layer), not by this element. */
   color: var(--text-headline);
   font-family: var(--font-satoshi);
   min-height: 100vh;
@@ -42,9 +43,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.textured-silver-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
+/* Studio backdrop: grain (overlay-blended at 40%), overhead highlight and the brushed-silver
+   gradient, all in one fixed layer. background-blend-mode is resolved when the layer is
+   painted, so the GPU composites a single static image while scrolling. The previous setup
+   (a full-viewport mix-blend-mode: overlay layer plus a separate highlight layer) made the GPU
+   re-blend the whole viewport every frame, roughly halving the scroll frame rate.
+   The grain's 40% opacity is baked into the SVG (opacity on the rect), which gives the same
+   result as opacity: 0.4 on a mix-blend-mode element. */
+.landing-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #EAEAEF;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.4'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(135deg, #F5F5F7 0%, #EAEAEF 50%, #D1D1D6 100%);
+  background-blend-mode: overlay, normal, normal;
 }
 
 
@@ -86,8 +102,8 @@ html.lenis, html.lenis body {
   height: 64px;
   z-index: 1000;
   background: rgba(10, 10, 16, 0.72);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(168, 85, 247, 0.28);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
   transition: background 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -95,8 +111,8 @@ html.lenis, html.lenis body {
 
 .genesis-header--scrolled {
   background: rgba(8, 8, 12, 0.88);
-  backdrop-filter: blur(24px) saturate(190%);
   -webkit-backdrop-filter: blur(24px) saturate(190%);
+  backdrop-filter: blur(24px) saturate(190%);
   border-bottom-color: rgba(168, 85, 247, 0.5);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
 }
@@ -120,6 +136,24 @@ html.lenis, html.lenis body {
   background: linear-gradient(90deg, #5A189A 0%, #9D4EDD 50%, #C77DFF 100%);
   transform-origin: 0%;
   box-shadow: 0 0 12px rgba(168, 85, 247, 1), 0 0 24px rgba(157, 78, 221, 0.8);
+  /* scaleX is set inline every scroll frame; keep it on its own layer so it scales on the GPU
+     instead of repainting. */
+  will-change: transform;
+}
+
+/* Where supported, the bar is driven by the page's scroll position on the compositor thread:
+   no JavaScript runs while scrolling. */
+@supports (animation-timeline: scroll()) {
+  .nav-purple-progress-bar--css {
+    transform: scaleX(0);
+    animation: nav-progress-grow linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes nav-progress-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 
 .header-inner {
@@ -136,10 +170,13 @@ html.lenis, html.lenis body {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-height: 44px;
+  flex-shrink: 0;
   text-decoration: none;
 }
 
 .brand-icon {
+  display: block;
   width: 26px;
   height: 26px;
   object-fit: contain;
@@ -148,6 +185,7 @@ html.lenis, html.lenis body {
 .brand-copy {
   display: flex;
   flex-direction: column;
+  white-space: nowrap;
 }
 
 .brand-title {
@@ -180,6 +218,10 @@ html.lenis, html.lenis body {
   font-weight: 500;
   position: relative;
   padding: 6px 0;
+  /* 44px tall hit area inside the 64px bar; text stays vertically centered. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   transition: color 0.15s ease;
 }
 
@@ -195,9 +237,12 @@ html.lenis, html.lenis body {
 .header-actions {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .editorial-cta-btn {
+  position: relative;
+  white-space: nowrap;
   background: linear-gradient(135deg, #5A189A 0%, #7E22CE 100%);
   color: #FFFFFF;
   font-size: 13px;
@@ -220,6 +265,34 @@ html.lenis, html.lenis body {
   box-shadow: 0 0 16px rgba(168, 85, 247, 0.7);
   color: #FFFFFF;
   transform: translateY(-1px);
+}
+
+/* Invisible extension of the pill's hit area to a 44px-tall tap target. */
+.editorial-cta-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* ── Narrow screens: the four section links no longer fit beside the brand and CTA ── */
+@media (max-width: 900px) {
+  .nav-editorial-menu {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-inner {
+    padding: 0 16px;
+    gap: 12px;
+  }
+  .brand-subtitle {
+    display: none;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -279,10 +352,10 @@ html.lenis, html.lenis body {
   cursor: pointer;
   display: inline-block;
   text-shadow: none !important;
-  filter: none !important;
   -webkit-filter: none !important;
-  backdrop-filter: none !important;
+  filter: none !important;
   -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   transition: all 500ms cubic-bezier(0, 0, 0.2, 1);
 }
 
@@ -321,8 +394,8 @@ html.lenis, html.lenis body {
 }
 
 .select-none {
-  user-select: none;
   -webkit-user-select: none;
+  user-select: none;
 }
 
 .relative {
@@ -387,6 +460,36 @@ html.lenis, html.lenis body {
 
 .hover\:bg-gradient-to-r:hover {
   background-image: linear-gradient(to right, #5A189A, #B570FF);
+}
+
+/* Remaining Tailwind-style utilities used in the JSX (Tailwind itself is not installed). */
+.fixed {
+  position: fixed;
+}
+
+.z-0 {
+  z-index: 0;
+}
+
+.block {
+  display: block;
+}
+
+.mb-8 {
+  margin-bottom: 2rem;
+}
+
+.cursor-default {
+  cursor: default;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.tracking-\[0\.12em\] {
+  letter-spacing: 0.12em;
 }
 
 
@@ -534,8 +637,7 @@ html.lenis, html.lenis body {
 /* Milestone Data Table */
 .mono-table-wrapper {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   margin-top: 32px;
@@ -594,8 +696,7 @@ html.lenis, html.lenis body {
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   margin-top: 36px;
   overflow: hidden;
 }
@@ -742,13 +843,80 @@ html.lenis, html.lenis body {
   width: 100%;
   max-width: 480px;
   background: rgba(8, 8, 10, 0.78);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
   border-radius: 10px;
   padding: 32px 36px;
   color: #FFFFFF;
+}
+
+/* Story beat transitions (StoryBeat.jsx), with the poses, durations and easing of the former
+   framer-motion variants: the card enters from opacity 0, 22px lower, scale 0.98 and blur 6px
+   over 0.42s while its items fade up 12px over 0.35s, 0.02s + 0.04s apart; it exits to opacity
+   0, 18px higher, scale 0.98 and blur 6px over 0.28s, items unchanged. Hidden cards wait in the
+   enter pose with visibility: hidden (not painted, not in the accessibility tree). */
+.beat-editorial-container {
+  --beat-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  transform: translateY(22px) scale(0.98);
+  filter: blur(6px);
+  visibility: hidden;
+}
+
+.beat-editorial-container.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  visibility: visible;
+  transition:
+    opacity 0.42s var(--beat-ease),
+    transform 0.42s var(--beat-ease),
+    filter 0.42s var(--beat-ease);
+}
+
+.beat-editorial-container.is-leaving {
+  opacity: 0;
+  transform: translateY(-18px) scale(0.98);
+  filter: blur(6px);
+  visibility: hidden;
+  transition:
+    opacity 0.28s var(--beat-ease),
+    transform 0.28s var(--beat-ease),
+    filter 0.28s var(--beat-ease),
+    visibility 0s linear 0.28s;
+}
+
+.beat-editorial-container .beat-item {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.beat-editorial-container.is-visible .beat-item,
+.beat-editorial-container.is-leaving .beat-item {
+  opacity: 1;
+  transform: none;
+}
+
+.beat-editorial-container.is-visible .beat-item {
+  transition:
+    opacity 0.35s var(--beat-ease),
+    transform 0.35s var(--beat-ease);
+}
+
+.beat-editorial-container.is-visible .beat-item:nth-child(1) { transition-delay: 0.02s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(2) { transition-delay: 0.06s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(3) { transition-delay: 0.1s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(4) { transition-delay: 0.14s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(5) { transition-delay: 0.18s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(6) { transition-delay: 0.22s; }
+
+/* Like framer-motion's reducedMotion="user": positions and scale jump, the fades still run. */
+@media (prefers-reduced-motion: reduce) {
+  .beat-editorial-container,
+  .beat-editorial-container .beat-item {
+    transform: none !important;
+  }
 }
 
 .editorial-eyebrow-row {
@@ -877,8 +1045,7 @@ html.lenis, html.lenis body {
 
 .col-block {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 28px;
@@ -917,8 +1084,7 @@ html.lenis, html.lenis body {
 /* Dossier Callout Card */
 .dossier-card {
   background: var(--bg-panel);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
   padding: 36px;
@@ -990,7 +1156,8 @@ html.lenis, html.lenis body {
   border-bottom: 1px solid var(--border-zinc);
 }
 
-.footer-brand-title {
+.footer-brand-title,
+.footer-logo {
   font-size: 20px;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -998,7 +1165,8 @@ html.lenis, html.lenis body {
   margin-bottom: 10px;
 }
 
-.footer-brand-desc {
+.footer-brand-desc,
+.footer-meta {
   font-family: var(--font-satoshi);
   font-size: 13px;
   line-height: 1.65;
@@ -1011,13 +1179,16 @@ html.lenis, html.lenis body {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-headline);
-  margin-bottom: 18px;
+  /* 18px + the 5px top padding of the first link = the previous 18px + 10px gap. */
+  margin-bottom: 23px;
 }
 
 .footer-nav-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* Spacing now comes from the links' own padding so each tap target is taller
+     (≈27px instead of ≈17px) while the visual rhythm stays the same. */
+  gap: 0;
 }
 
 .footer-nav-col a,
@@ -1027,7 +1198,7 @@ html.lenis, html.lenis body {
   text-decoration: none;
   background: none;
   border: none;
-  padding: 0;
+  padding: 5px 0;
   text-align: left;
   cursor: pointer;
   font-family: var(--font-satoshi);
@@ -1040,13 +1211,102 @@ html.lenis, html.lenis body {
   color: var(--text-headline);
 }
 
-.footer-bottom-row {
+.footer-bottom-row,
+.footer-bottom-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 32px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Footer brand block + legal row: the JSX class names had drifted from the rules above,
+   leaving these unstyled (browser-default buttons, 16px Times-like text). */
+.footer-logo {
+  display: block;
+}
+
+.footer-legal-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--text-dim);
+}
+
+.legal-link-btn {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  min-height: 24px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.legal-link-btn:hover {
+  color: var(--text-headline);
+}
+
+/* Legal dialog pieces (same drift: designed as .legal-modal-* above). Scoped to the backdrop so
+   it outranks the shared `.legal-modal-card, .legal-modal-panel` rule further down. */
+.legal-modal-backdrop .legal-modal-panel {
+  /* Near-opaque: the shared 72% panel tint over the dimmed backdrop left body text
+     below 4.5:1. */
+  background: rgba(244, 244, 246, 0.97);
+  overflow: hidden;
+}
+
+.modal-header-bar {
+  gap: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.modal-close-btn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border-zinc);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-subcopy);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.modal-close-btn:hover {
+  color: var(--text-headline);
+  border-color: var(--border-zinc-dark);
+}
+
+.modal-body-scroll {
+  overscroll-behavior: contain;
+}
+
+.legal-content {
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.legal-content p {
+  margin-bottom: 12px;
+}
+
+.legal-content p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-heading {
+  margin-bottom: 14px;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1059,8 +1319,8 @@ html.lenis, html.lenis body {
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1068,7 +1328,8 @@ html.lenis, html.lenis body {
   padding: 24px;
 }
 
-.legal-modal-card {
+.legal-modal-card,
+.legal-modal-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border-zinc);
   border-radius: 4px;
@@ -1080,7 +1341,8 @@ html.lenis, html.lenis body {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
-.legal-modal-header {
+.legal-modal-header,
+.modal-header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1089,7 +1351,8 @@ html.lenis, html.lenis body {
   background: var(--bg-panel-subtle);
 }
 
-.legal-modal-title {
+.legal-modal-title,
+.legal-heading {
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -1110,7 +1373,8 @@ html.lenis, html.lenis body {
   color: var(--text-headline);
 }
 
-.legal-modal-body {
+.legal-modal-body,
+.modal-body-scroll {
 
   padding: 28px;
   overflow-y: auto;
@@ -1818,6 +2082,30 @@ html.lenis, html.lenis body {
   will-change: transform;
 }
 
+/* Pinned horizontal travel on the compositor: the wrapper is as tall as the pinned stage plus the
+   track's horizontal travel, the stage sticks, and the track's translate follows the wrapper's
+   view timeline over the stuck range. Same geometry and 1:1 mapping as the GSAP fallback in
+   TeamSection.jsx (pin from "top top" for scrollWidth - innerWidth), without a main-thread
+   update per frame. --team-slides is set from the slide count by TeamSection.jsx. */
+@supports (animation-timeline: view()) {
+  @media (min-width: 769px) and (prefers-reduced-motion: no-preference) {
+    .team-hscroll-wrapper {
+      height: calc(100vh + (var(--team-slides, 7) - 1) * 100vw);
+      view-timeline: --team-hscroll block;
+    }
+    .team-hscroll-track {
+      animation: team-hscroll linear both;
+      animation-timeline: --team-hscroll;
+      animation-range: contain 0% contain 100%;
+    }
+  }
+}
+
+@keyframes team-hscroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc((var(--team-slides, 7) - 1) * -100vw)); }
+}
+
 .team-hslide {
   flex: 0 0 100vw;
   width: 100vw;
@@ -1835,8 +2123,7 @@ html.lenis, html.lenis body {
   height: auto;
   max-height: calc(100vh - 120px);
   background: rgba(18, 18, 26, 0.82);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  /* No backdrop blur: the panel is mostly opaque over a static backdrop, so blurring it was invisible (<=7/255 per pixel) but cost a GPU render pass every scroll frame. */
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 28px 36px;
@@ -1938,6 +2225,15 @@ html.lenis, html.lenis body {
 .hint-arrow {
   display: inline-block;
   animation: bounceY 1.8s ease-in-out infinite;
+  /* Paused until the team section is on screen (TeamSection toggles .is-onscreen). */
+  animation-play-state: paused;
+  /* Own compositor layer: without it this endless animation repainted the whole page layer
+     every frame (~500 viewport-sized repaints per 3 s of scrolling, even off-screen). */
+  will-change: transform;
+}
+
+.is-onscreen .hint-arrow {
+  animation-play-state: running;
 }
 
 @keyframes bounceY {
@@ -2238,7 +2534,7 @@ html.lenis, html.lenis body {
 .sidebar-section-title {
   font-size: 9px;
   letter-spacing: 0.16em;
-  color: #71717A;
+  color: #8E8E99; /* was #71717A: 3.9:1 on the dark slide panel */
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -2377,7 +2673,7 @@ html.lenis, html.lenis body {
 .idle-quote {
   font-size: 9px;
   letter-spacing: 0.16em;
-  color: #52525B;
+  color: #8E8E99; /* was #52525B: 2.4:1 on the dark slide panel */
   text-transform: uppercase;
 }
 
@@ -2418,6 +2714,67 @@ html.lenis, html.lenis body {
     padding-right: 0;
   }
 }
+
+/* Phones and reduced motion: the pinned horizontal track is disabled in TeamSection.jsx
+   (gsap.matchMedia), so stack the slides vertically. On phones each slide used to be clipped
+   to one viewport height and to 100vw, cutting off most of the roster and the header badges. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .team-hscroll-stage {
+    position: relative;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .team-hscroll-track {
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+    padding-top: 0;
+    transform: none !important;
+    will-change: auto; /* no transform to animate: don't keep a huge layer */
+  }
+  .team-hslide {
+    flex: none;
+    width: 100%;
+    height: auto;
+  }
+  .hslide-inner {
+    max-height: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .team-hslide {
+    padding: 24px 16px;
+  }
+  .team-hslide:first-child {
+    padding-top: 40px;
+  }
+  .team-hslide:last-child {
+    padding-bottom: 40px;
+  }
+  .hslide-inner {
+    max-height: none;
+    padding: 22px 18px;
+  }
+  .slide-header-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .header-badge-group {
+    flex-wrap: wrap;
+  }
+  .overview-stats-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .leadership-cards-grid,
+  .legacy-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
 /* ═══════════════════════════════════════════════════════════
    HERO ROBOT ILLUSTRATION
    ── Easy Tuning Controls ──────────────────────────────────
@@ -2437,6 +2794,12 @@ html.lenis, html.lenis body {
   pointer-events: none;
   overflow: hidden;
   z-index: 1;
+}
+
+.hero-robot-wrap > picture {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .hero-robot-img {

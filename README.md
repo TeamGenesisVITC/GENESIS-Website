@@ -39,12 +39,150 @@ This project intentionally avoids generic UI patterns and focuses on:
 
 ## Tech Stack
 
-- **React 18**
+- **React 18** single-page app with **React Router 6**
+- **Vite 8** for development and builds
+- **Cloudflare Workers** (static assets + a small Worker for `/api/*`)
 - **JavaScript (ES6+)**
 - **CSS (custom styles, design tokens via variables)**
 - **Git & GitHub** for version control and collaboration
 
 No external UI frameworks are used to preserve design flexibility and control.
+
+---
+
+## Development
+
+Requirements: Node.js 22.13 or newer (the version in `.nvmrc` is what CI uses) and npm.
+
+```bash
+npm ci            # install exact dependency versions from package-lock.json
+npm run dev       # dev server on http://localhost:5173 with hot reload
+```
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server. The Worker in `worker/index.js` runs in the local Cloudflare runtime (workerd), so `/api/health` works too. |
+| `npm run build` | Production build into `dist/` (see below). |
+| `npm run preview` | Serves the production build on http://localhost:4173 in the local Cloudflare runtime, with the same routing, 404 handling and `_headers` as production. Run `npm run build` first. |
+| `npm run lint` | ESLint (`eslint.config.mjs`). |
+| `npm run build:atlases` | Regenerates the scroll-sequence atlases in `public/frame-atlases/` from `public/frames/`. |
+| `npm run cf-typegen` | Generates `worker-configuration.d.ts` (types for the Worker's bindings). |
+| `npm run deploy` | Builds and deploys to Cloudflare with your local Wrangler login. Normally use the GitHub Action instead. |
+
+### Project layout
+
+- `index.html`: the page template (fonts, SEO tags, JSON-LD). Vite injects the bundles.
+- `src/main.jsx`: entry point. `src/App.jsx`: routes.
+- `src/routes/meta.js`: title, description and canonical URL for every route. This is the
+  single source of truth: it is used at runtime (`src/utils/pageMeta.js`) and at build time.
+- `public/`: copied as-is to the site root (`robots.txt`, `sitemap.xml`, images, `_headers`).
+- `worker/index.js`: Cloudflare Worker, only runs for `/api/*`.
+- `wrangler.jsonc`: Cloudflare configuration. `vite.config.mjs`: Vite configuration.
+
+### Adding a page
+
+1. Add the `<Route>` in `src/App.jsx`.
+2. Add its title and description to `ROUTE_META` in `src/routes/meta.js` (path without a
+   trailing slash, e.g. `/team/design`).
+3. Add the URL to `public/sitemap.xml`. The build fails if the sitemap lists a path that has no
+   entry in `src/routes/meta.js`.
+
+### What the build produces
+
+`npm run build` writes:
+
+- `dist/client/`: everything that is served as static assets. Besides the JS/CSS in
+  `dist/client/assets/` (file names contain a content hash), it contains one HTML file per
+  route (`index.html`, `robo-hi.html`, `team/leads.html`, ...) with that route's title,
+  description, canonical URL and Open Graph / Twitter tags already in the HTML, plus
+  `404.html`. This is done by `scripts/prerender-routes.mjs` so that link previews on
+  WhatsApp, LinkedIn, X and Slack (which don't run JavaScript) show the right page. The page
+  content itself is still rendered by React in the browser.
+- `dist/genesis_website/`: the bundled Worker and the generated `wrangler.json` that
+  `wrangler deploy` uses.
+
+Cloudflare limits each static file to 25 MiB; `npm run preview` and `wrangler deploy` fail
+with "Asset too large" if a file in `public/` is bigger.
+
+### How URLs are served
+
+Configured in `wrangler.jsonc` (`html_handling: "auto-trailing-slash"`,
+`not_found_handling: "404-page"`):
+
+| Request | Response |
+| --- | --- |
+| `/team/leads` | 200, `team/leads.html` (canonical URL, as in the sitemap) |
+| `/team/leads/`, `/team/leads.html` | 307 redirect to `/team/leads` |
+| `/some/unknown/path` | 404, `404.html` (noindex); React renders the Not Found page |
+| missing file, e.g. `/assets/old.js` | 404 |
+| `/api/health` | 200 JSON from the Worker |
+
+In `npm run dev` there are no per-route HTML files yet, so every page path is answered with
+`index.html` (status 200).
+
+---
+
+## Deploying to Cloudflare
+
+The site is a Cloudflare Worker named `genesis-website` with static assets.
+
+### GitHub Actions (recommended)
+
+`.github/workflows/deploy-cloudflare.yml` builds the site and runs `wrangler deploy`. It only
+runs when started by hand: **Actions > Deploy to Cloudflare Workers > Run workflow**.
+
+It needs two repository secrets (**Settings > Secrets and variables > Actions**):
+
+- `CLOUDFLARE_ACCOUNT_ID`: shown on the Cloudflare dashboard (Workers & Pages overview, or the
+  account home page).
+- `CLOUDFLARE_API_TOKEN`: create one under **My Profile > API Tokens > Create Token** with the
+  **Edit Cloudflare Workers** template, limited to this account (and, after the domain move,
+  to the `teamgenesisvitc.in` zone).
+
+The first deploy publishes the site at `https://genesis-website.<your-subdomain>.workers.dev`.
+
+### From your machine
+
+```bash
+npx wrangler login     # once
+npm run deploy         # = npm run build && wrangler deploy
+```
+
+To check the production build locally in the Cloudflare runtime first: `npm run build` then
+`npm run preview` (or `npx wrangler dev`, which serves the same build on port 8787).
+
+### Moving teamgenesisvitc.in to Cloudflare
+
+The domain is registered at Hostinger and the site is currently on Vercel. To serve it from the
+Worker:
+
+1. **Add the zone.** In the Cloudflare dashboard, **Add a domain** > `teamgenesisvitc.in`
+   (Free plan is fine). Cloudflare scans the existing DNS records.
+2. **Check the imported DNS records before switching anything.** Compare them with the
+   records at Hostinger and add whatever is missing, in particular: the Google Search Console
+   verification `TXT` record, any `MX` / `TXT` (SPF, DKIM, DMARC) records for email, and any
+   other subdomains. Records for the website itself (the Vercel `A` / `CNAME` for the apex and
+   `www`) will be replaced in step 4.
+3. **Switch nameservers.** At Hostinger (**Domains > teamgenesisvitc.in > DNS / Nameservers**),
+   replace Hostinger's nameservers with the two Cloudflare nameservers shown for the zone. Wait
+   until Cloudflare shows the zone as **Active** (minutes to a few hours). The site keeps
+   working on Vercel in the meantime because the copied DNS records still point there.
+4. **Attach the domains to the Worker.** Either in the dashboard (**Workers & Pages >
+   genesis-website > Settings > Domains & Routes > Add > Custom domain**) for both
+   `teamgenesisvitc.in` and `www.teamgenesisvitc.in`, or by uncommenting the `routes` block in
+   `wrangler.jsonc` and deploying. Cloudflare creates the DNS records and certificates. If it
+   reports that a DNS record already exists for the hostname, delete the old Vercel `A` /
+   `CNAME` record for it and add the custom domain again.
+5. **Verify** `https://www.teamgenesisvitc.in/`, a team page such as `/team/leads`, an unknown
+   URL (should be 404) and `/api/health`. The canonical URLs use `https://www.teamgenesisvitc.in`,
+   so also make the apex redirect to `www` instead of serving a duplicate copy, e.g. a
+   **Rules > Redirect Rule** with wildcard pattern `https://teamgenesisvitc.in/*` and target
+   `https://www.teamgenesisvitc.in/${1}` (301, preserve query string).
+6. **Retire the old hosting.** Remove the domain from the Vercel project and delete or pause
+   that project, and remove `.github/workflows/deploy.yml` (the old GitHub Pages workflow) and
+   the committed `build/` directory, which are no longer used.
+7. Optionally enable HSTS (**SSL/TLS > Edge Certificates**) once everything works over HTTPS,
+   and resubmit `https://www.teamgenesisvitc.in/sitemap.xml` in Search Console.
 
 ---
 

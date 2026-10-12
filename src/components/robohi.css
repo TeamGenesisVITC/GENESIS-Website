@@ -7,9 +7,13 @@
   justify-content: flex-start;
   align-items: center;
   min-height: 100vh;
-  background: transparent;
+  /* Was transparent, which showed the app's light-silver body behind this page's white
+     neon text (near-invisible). Same deep violet base as the /team/* pages. */
+  background: #0a0118;
   overflow: hidden;
-  padding-top: 8vh;
+  /* +45px: .hero-content's -85px pull-up pushed the GENESIS title ~13px above the
+     viewport on desktop. Mobile keeps its own 5vh value below. */
+  padding-top: calc(8vh + 45px);
 }
 
 .neon-grid {
@@ -435,6 +439,19 @@ END OLD STYLES */
   transition: all 0.4s ease;
   position: relative;
   z-index: 1;
+  /* Nodes are <a> links now: no underline / link color. */
+  color: inherit;
+  text-decoration: none;
+}
+
+.neural-node:focus-visible {
+  outline-offset: 8px;
+  border-radius: 16px;
+}
+
+/* Let the <img> inside <picture> stay the direct flex child of the core. */
+.node-core > picture {
+  display: contents;
 }
 
 .neural-node:hover {
