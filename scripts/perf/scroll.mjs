@@ -14,6 +14,7 @@
 //     [--settle=800] [--path=/] [--query=?x=1] [--no-scstats]
 //     [--css='<css>' [--css-check='selector|property|expected[;;...]']] [--block='<url glob>[,...]']
 //     [--port=8123] [--cdp-port=9333] [--out=path.json] [--keep-traces]
+//     [--gpu-quiet=<pct> [--gpu-quiet-wait=<s>]]   (Windows: wait for an idle GPU before each run)
 //   node scripts/perf/scroll.mjs --compare <before.json> <after.json> [--out=report.md]
 //   node scripts/perf/scroll.mjs --render=<result.json>          (re-render the .md)
 // Results: scripts/perf/results/<label>.json + <label>.md (see README "Scroll smoothness").
@@ -86,6 +87,10 @@ const opt = {
   cssCheck: typeof args['css-check'] === 'string' ? args['css-check'] : null,
   block: typeof args.block === 'string' ? args.block.split(',').map((s) => s.trim()).filter(Boolean) : [],
   keepTraces: !!args['keep-traces'],
+  // Before every measured run, wait (up to gpuQuietWaitS) until all other processes together use
+  // at most this many % of the GPU's 3D engine. null = don't wait (the load is still recorded).
+  gpuQuiet: args['gpu-quiet'] != null ? parseFloat(args['gpu-quiet']) : null,
+  gpuQuietWaitS: parseInt(args['gpu-quiet-wait'], 10) || 300,
 };
 opt.categories = TRACE_CATEGORIES[opt.trace];
 const [VW, VH] = opt.viewport.split('x').map((n) => parseInt(n, 10));
@@ -245,6 +250,24 @@ function hostGpuSample() {
     }
     return byName;
   } catch { return null; }
+}
+
+// --gpu-quiet: hold a run until the rest of the machine leaves the GPU alone. Counts every process
+// except Chrome (this harness's own, idle between runs), DWM included: on the development laptop
+// the desktop compositor alone took ~70 % of the iGPU whenever another window was animating, and
+// even the calibration page then dropped from 165 to ~50-85 presented fps.
+async function waitForQuietGpu() {
+  if (opt.gpuQuiet == null || process.platform !== 'win32') return null;
+  const t0 = Date.now();
+  for (;;) {
+    const sample = hostGpuSample();
+    if (!sample) return null;
+    const other = Object.entries(sample).filter(([name]) => !/^chrome$/i.test(name)).reduce((sum, [, v]) => sum + v, 0);
+    const waitedS = Math.round((Date.now() - t0) / 1000);
+    if (other <= opt.gpuQuiet) return { waitedS, otherGpu: +other.toFixed(1), timedOut: false };
+    if (waitedS >= opt.gpuQuietWaitS) return { waitedS, otherGpu: +other.toFixed(1), timedOut: true };
+    await sleep(3000);
+  }
 }
 
 function cpuTimes() {
@@ -521,7 +544,12 @@ async function main() {
       const loadTxt = gpuLoad ? Object.entries(gpuLoad).sort((a, b) => b[1] - a[1]).map(([n, u]) => `${n} ${u}%`).join(', ') || 'none' : 'n/a';
       log(`\nround ${round}/${opt.runs}: ${order.join(' → ')}   (GPU 3D load before the round: ${loadTxt})`);
       for (const item of order) {
+        const gate = await waitForQuietGpu();
+        if (gate && (gate.waitedS > 0 || gate.timedOut)) {
+          log(`  (waited ${gate.waitedS} s for the GPU: other load ${gate.otherGpu} %${gate.timedOut ? ', still busy: measuring anyway' : ''})`);
+        }
         const r = await safeMeasure(item, round);
+        if (gate) r.gpuGate = gate;
         runs.push(r);
         log(`  ${item.padEnd(12)} ${fmtRun(r)}`);
       }

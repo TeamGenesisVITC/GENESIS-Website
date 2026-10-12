@@ -240,6 +240,13 @@ session a video player (`mpv`) used ~50 % of the iGPU's 3D engine and the
 calibration page reached only 96 [95–100] presented fps of 165 — which the
 report's "Other GPU load" line now makes visible.
 
+`--gpu-quiet=<pct>` (Windows) waits before every measured run until all
+other processes together, DWM included, use at most `pct` % of the 3D engine
+(up to `--gpu-quiet-wait` seconds, default 300; each run records the wait in
+`gpuGate`). On the development laptop the Claude desktop app and DWM swung
+between ~5 % and ~100 % within minutes, which flipped before/after
+comparisons; `--gpu-quiet=12` keeps every run on an otherwise idle GPU.
+
 ### Comparing sessions
 
 `--compare a.json b.json` (or `compare.mjs`) prints, per metric and target,
