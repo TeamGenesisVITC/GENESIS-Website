@@ -18,7 +18,11 @@
     "perf:ux": "node scripts/perf/ux.mjs",
     "perf:preview": "node scripts/perf/linkpreview.mjs",
     "perf:compare": "node scripts/perf/compare.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "perf:scroll": "node scripts/perf/scroll.mjs",
+    "perf:scroll:compare": "node scripts/perf/scroll.mjs --compare",
+    "perf:shot": "node scripts/perf/shot.mjs",
+    "perf:test": "node scripts/perf/lib/static-server.test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

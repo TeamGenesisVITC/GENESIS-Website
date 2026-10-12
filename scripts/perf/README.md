@@ -5,14 +5,15 @@ drives stock Google Chrome over the DevTools protocol (CDP); nothing is
 installed and nothing leaves the machine except the site's own third-party
 requests (Fontshare / Google Fonts).
 
-Two tools share one static server and one CDP client (`lib/`):
+The tools share one static server and one CDP client (`lib/`):
 
 | tool | question it answers |
 |---|---|
+| `scroll.mjs` | **Is scrolling smooth?** Presented frames, missed vsyncs, Chrome's scroll-jank attribution and input latency per landing section, against a calibration page, with repeated randomized runs. The primary scroll benchmark. |
 | `ux.mjs` | How fast does each route load for a visitor (desktop and throttled mobile)? What do link-preview bots see? |
-| `measure.mjs` (+ `envelope.mjs`, `shot.mjs`) | What does the landing scrollytelling cost while scrubbing (memory residency, frame times, main-thread work)? |
+| `measure.mjs` (+ `envelope.mjs`, `shot.mjs`) | What does the landing scrollytelling cost while scrubbing the whole page (memory residency, presentation, main-thread work)? Screenshots of the canvas. |
 
-`compare.mjs` turns two `ux.mjs` results into a before/after delta table.
+`compare.mjs` turns two `ux.mjs` results — or two `scroll.mjs` results — into a before/after delta table.
 
 ## Quick start
 
@@ -31,6 +32,12 @@ node scripts/perf/ux.mjs --url=http://localhost:4173 --label=after-preview --run
 
 # before/after table
 node scripts/perf/compare.mjs scripts/perf/results/baseline-cra.json scripts/perf/results/after-vite.json --out=scripts/perf/results/compare.md
+
+# scroll smoothness per landing section (headed Chrome: keep the window visible, hands off)
+node scripts/perf/scroll.mjs --dir=dist/client --label=scroll-before
+# ... change the site, rebuild ...
+node scripts/perf/scroll.mjs --dir=dist/client --label=scroll-after
+node scripts/perf/scroll.mjs --compare scripts/perf/results/scroll-before.json scripts/perf/results/scroll-after.json
 ```
 
 Results land in `scripts/perf/results/<label>.json` plus a readable
@@ -48,8 +55,8 @@ Results land in `scripts/perf/results/<label>.json` plus a readable
 > relative or `C:/...` path.
 
 Ports: the harness uses HTTP **8123** and CDP **9333** (`--port=`,
-`--cdp-port=`), `scripts/serve.mjs` uses **4180**. Run one harness command at
-a time.
+`--cdp-port=`), `scripts/serve.mjs` uses **4180**; `scroll.mjs` serves its
+calibration page on an OS-assigned port. Run one harness command at a time.
 
 ## Choosing the target: `--dir` vs `--url`
 
@@ -67,7 +74,7 @@ Approximates Cloudflare Workers static assets so local numbers carry over:
 | html_handling `auto-trailing-slash` (Cloudflare default) | `/about` → `about.html` (200); `/about.html` → 307 `/about`; `/folder` → 307 `/folder/`; `/folder/` → `folder/index.html`; `/folder/index.html` → 307 `/folder/` |
 | not_found_handling `auto` (default) | `404-page` if `<dir>/404.html` exists (nearest `404.html`, **HTTP 404**), else `single-page-application` (`/index.html`, HTTP 200 — today's behaviour). Override with `--not-found=404-page\|single-page-application\|none`. |
 | `wrangler.json(c)/toml` | if a config in the repo root or next to the dir sets `assets.html_handling` / `not_found_handling`, those values are used. |
-| `_headers` | Cloudflare format: path patterns with `*` and `:placeholder`, `Name: value` lines, `! Name` removes; values from several matching rules are joined with `, `; custom headers replace the defaults. Host-specific rules are matched on the path only. |
+| `_headers` | Cloudflare format: path patterns with `*` and `:placeholder`, `Name: value` lines, `! Name` removes. Every matching rule applies **in file order; within a rule its `! Name` removals run first, then its sets** (so `/frame-atlases/manifest.json` and `/assets/*.mp4` first get the `immutable` Cache-Control of the broader rule above them, then remove and replace it, as on Cloudflare). Values set by several matching rules are joined with `, `; custom headers replace the defaults; a removal that is not followed by a set also drops the default header. Host-specific rules are matched on the path only. Self-test: `node scripts/perf/lib/static-server.test.mjs`. |
 | `_redirects` | static and splat (`:splat`) rules; status 200 = rewrite. |
 | caching | strong ETag, default `Cache-Control: public, max-age=0, must-revalidate`, `304` on `If-None-Match` (so a warm repeat visit revalidates every asset unless `_headers` says `immutable`). |
 | compression | brotli q4 (else gzip 6) for text types, as Cloudflare's edge does on the fly; images/media are sent as-is; single `Range` requests → 206. |
@@ -79,6 +86,232 @@ one connection), edge cache, Early Hints, real RTT to the edge.
 `node scripts/serve.mjs [port] [--dir=dist/client] [--log]` serves a build on
 4180 with the same semantics for manual testing (`--no-store` restores the
 original minimal SPA server).
+
+## Scroll smoothness: `scroll.mjs`
+
+The primary scroll benchmark. It scrolls *inside* each landing section with real
+compositor scroll gestures and reads what was actually presented on screen from the
+Chrome trace, against a plain calibration page measured in the same session.
+
+```
+node scripts/perf/scroll.mjs [--dir=<path> | --url=<origin>] [--label=name] [--runs=5]
+  [--sections=hero,theses,canvas,team,footer]     # also available: projects
+  [--headless] [--viewport=1440x900] [--dpr=<n>]  # default: headed, native DPR
+  [--speed=1500] [--distance=1500|full] [--align=center|start] [--source=mouse|touch]
+  [--trace=full|lean] [--seed=<n>] [--settle=800] [--no-warmup] [--no-calibration]
+  [--css='<css>' [--css-check='selector|property|expected[;;...]']] [--block='<url glob>[,...]']
+  [--path=/] [--query=?x=1] [--no-scstats] [--keep-traces] [--out=path.json]
+  [--port=8123] [--cdp-port=9333]
+node scripts/perf/scroll.mjs --compare <before.json> <after.json> [--out=report.md]
+node scripts/perf/compare.mjs <before.json> <after.json>     # same table
+node scripts/perf/scroll.mjs --render=<result.json>           # re-render the .md
+```
+
+`--dir` / `--url` work as for the other tools (`--dir` is served with the
+Cloudflare-like semantics below, including `wrangler.jsonc`'s
+`not_found_handling`, and with Cloudflare caching — not the legacy no-store
+server). Results: `results/<label>.json` + `results/<label>.md`. The exit code is
+1 only for fatal problems (Chrome failed, a `--css-check` did not hold); a run
+that errored or left its section stays in the JSON, is listed in the report's
+run log and is excluded from the medians.
+
+### One measurement
+
+1. Navigate the tab to `about:blank`, bring it to the front (`Page.bringToFront`:
+   headed, this makes Chrome the OS foreground window, as for a visitor), then
+   navigate to the page (fresh document; the landing URL gets `?scstats`, see
+   below); wait for `load`, network idle (no request in flight for 500 ms),
+   `document.fonts.ready`, the landing's `performance.mark('genesis:ready')`
+   (critical atlases decoded; recorded as `readyMarkMs`, a note if it does not
+   come within 20 s), and until `<html>`/`<body>` are no longer
+   `overflow: hidden` (preloader lock).
+2. `--css` (landing only): a `<style>` is appended to `<head>` with
+   `Runtime.evaluate` after load. `--css-check='selector|property|expected'`
+   (several separated by `;;`) then compares `getComputedStyle()` values and
+   aborts the session if one does not match — an ablation that silently did not
+   apply is worse than none. Without `--css-check` the report says the CSS was
+   parsed but not verified.
+3. Find the section in the DOM, jump to the gesture's start with
+   `window.scrollTo({behavior: 'instant'})`, wait for network idle again (the
+   atlases around that frame) plus `--settle` ms (800).
+4. Trace one `Input.synthesizeScrollGesture` (down, `--speed` px/s, mouse-wheel
+   source): the browser's input router → renderer compositor thread → viz, the
+   path a real wheel/touchpad scroll takes. The page is never scrolled from
+   JavaScript.
+5. Verify: started where intended (±4 px), moved the requested distance (±3 %),
+   and start and end lie inside the section's scroll range (recomputed after the
+   gesture). Otherwise the run is flagged `inSection: false` with the reason.
+   Right before and after the gesture the page's `window.__sc` counters are
+   read (landing only) and `document.visibilityState` / `document.hasFocus()`
+   are recorded.
+
+| section | element(s) |
+|---|---|
+| `hero` | `#hero-section` |
+| `theses` | `#origins-section` + `#vision-section` |
+| `canvas` | `#flagship-section` (sticky scroll-scrubbed canvas) |
+| `projects` (opt-in) | `#projects-pipeline` |
+| `team` | the GSAP `.pin-spacer` around `#team-section` (pinned horizontal roster), else `#team-section` |
+| `footer` | `#invest-section` + `<footer>` |
+
+Scroll range of a section: when it is at least 600 px taller than the viewport,
+the range in which it fills the viewport (`top … bottom − viewport height`);
+otherwise the range in which it covers the viewport's centre line
+(`top − vh/2 … bottom − vh/2`); clamped to the document. The gesture covers
+`min(--distance, range)` px, centred in the range (`--align=start`: from its top;
+`--distance=full`: all of it). At 1440×900 the hero offers only ~510 px (a 0.35 s
+gesture), so its numbers are the noisiest.
+
+### Run design
+
+- **Warm-up:** one discarded round visits every target in a fixed order (HTTP
+  cache, Chrome's GPU shader cache and font cache warm). All measured runs are
+  therefore **warm**: every measurement still loads a fresh document, so the
+  page decodes the atlases it needs again (from the HTTP cache), and the
+  gesture only starts after `genesis:ready`, network idle at the start position
+  and `--settle`. So "warm" means: HTTP/shader/font caches warm, page state
+  (JS heap, decoded atlases, GPU tiles) fresh but settled. There are no
+  cold-cache scroll numbers; page-load costs are `ux.mjs`'s job. With
+  `--no-warmup` the first round's first visit of each target is cold, and the
+  report's header says so.
+- **Rounds:** `--runs` (5) rounds; each round visits every section and the
+  calibration page in a shuffled order (seeded: `--seed`, recorded), so drift
+  (thermal state, background load, other processes) spreads over all targets
+  instead of always hitting the last ones.
+- **Statistics:** median and IQR (p25–p75, linear interpolation) over the runs.
+  "Relative to the calibration page" takes the ratio (fps) or difference (%)
+  against the calibration run *of the same round* and reports their median, so
+  slow drift cancels out.
+- **One tab:** on the development laptop, headed Chrome 154 launched by the
+  harness exited (exit code −1, no crash dump) whenever a second tab or window
+  was opened over CDP, so each measurement re-navigates the one tab via
+  `about:blank` instead of opening a fresh tab. Same-site navigations may reuse
+  the renderer process; the JS heap and decoded images belong to the document.
+  If Chrome exits anyway, the session aborts (exit code 1) instead of logging
+  an error for every remaining measurement.
+- **Window:** headed, the window is sized so that the *viewport* is
+  `--viewport` (default 1440×900 CSS px; `Browser.setWindowBounds`, corrected
+  until `innerWidth`/`innerHeight` match) and brought to the front before every
+  measurement, so the harness takes focus from whatever you are doing.
+
+### Metrics (per gesture; all from the Chrome trace)
+
+| metric | definition |
+|---|---|
+| presented fps | distinct `Display::FrameDisplayed` timestamps (viz; the presentation time the OS reported, vsync-quantized) between the first and the last *presented scroll update*, ÷ that window. Frames that share a timestamp were replaced before scan-out and count once. Fallbacks (recorded as `presentSource`): `Graphics.Pipeline.DrawAndSwap` end, then `Display::DrawAndSwap` end. |
+| refresh rate / vsync | `ScrollJankV4.vsync_interval_us` (Chrome 154 actually writes nanoseconds there — normalized by plausibility), else `EventLatency.vsync_interval_ms`, else viz `DisplayScheduler::BeginFrame` `interval_us`. Recorded as `vsyncSource`. |
+| interval p50 / p95 / p99 | presentation-to-presentation intervals inside the window. Perfect at 165 Hz: 6.06 ms everywhere. `intervalHistVsyncs` in the JSON has the histogram in vsyncs (1, 2, … 6+). |
+| >1.5×vsync % | share of those intervals longer than 1.5 vsync intervals = at least one vsync without a new frame. |
+| vsync hit % | intervals ÷ vsyncs elapsed (100 % = a new frame on every vsync while scrolling). `missedVsyncsPresent` = vsyncs without a frame. |
+| janky % (SJv4) | Chrome's own scroll-jank metric (`ScrollJankV4`, one event per presented scroll frame): frames with `is_janky` ÷ scroll frames. A frame is janky when it reached the screen later than Chrome's model of the input stream says it could have. |
+| missed vsync/s (SJv4) | Σ over janky frames of the frame's worst `missed_vsyncs_per_jank_reason` (reasons overlap), ÷ seconds from the first scroll input to the last presented scroll frame. Per-reason totals: `sjMissedByReason` in the JSON. |
+| input → present p50 / p95 | `EventLatency` slices (input event timestamp → presentation) of `GESTURE_SCROLL_UPDATE` / `FIRST_…` / `INERTIAL_…` events whose end equals a presentation timestamp, i.e. events that drew a frame (coalesced events end at "termination" and are excluded). With synthetic input the timestamp is when the browser synthesized the event, so OS/driver/device latency is not included. |
+| main busy % | Σ `RunTask` on the scrolled renderer's `CrRendererMain` thread overlapping [first scroll input, last presented scroll frame] ÷ that window (`--trace=full` only). |
+| long tasks | `RunTask`s longer than 50 ms in that window. |
+| paints / frame | Blink `Paint` events in the window ÷ presented frames. A compositor-only scroll needs ≈ 0; anything above means the page repaints while it scrolls. |
+| rAF / style+layout / paint ms | Σ `FireAnimationFrame` / `UpdateLayoutTree`+`Layout` / `Paint`+`PrePaint`+`Layerize` in the window. |
+| drawn fps | viz `Display::DrawAndSwap` per second: frames drawn, including those replaced before they were shown. |
+| host CPU busy % | whole-machine CPU busy during the gesture (`os.cpus()`): other load on the laptop. |
+| canvas draws, missA, blank, resident | `window.__sc` (ScrollCanvas counters, enabled by `?scstats`; `--no-scstats` drops the parameter) after − before the gesture: canvas redraws, draws that showed the nearest resident frame because the exact atlas was not decoded (`missA`), draws with no atlas at all (`blank`, also a run-log note); `resident` = peak decoded atlases in that page load. "draws / presented frame" ≈ 1 in the canvas section means the canvas redrew for every presented frame. Any other numeric `__sc` field (`current`, `downloaded`) is kept in the JSON. |
+| other GPU load | Windows only: the "GPU Engine" 3D utilization per process (`Get-Counter`), sampled before every round outside any trace (`hostGpu` in the JSON). The report flags a session in which a non-browser process used ≥ 10 % of the 3D engine. |
+| window state | `focused` / `visibility` per run; the report counts runs where the page was hidden or another window had focus. |
+
+Also recorded per run: start/end scroll position, distance, viewport, DPR,
+gesture duration, trace data loss, the renderer pid, and notes. Per session:
+Chrome version, the ANGLE renderer string (the GPU Chrome actually renders with),
+all GPU adapters (`SystemInfo.getInfo`), refresh rate, DPR, viewport, seed and the
+order of every round. `--keep-traces` saves every gesture's trace next to the
+result (`<label>-traces/*.json`, loadable in DevTools' Performance panel or
+https://ui.perfetto.dev).
+
+### The calibration page
+
+Generated in memory (`lib/calibration.mjs`) and served on an OS-assigned port:
+260 headings and paragraphs of system-font text — no images, fixed or sticky
+layers, filters, blend modes, web fonts, scroll listeners or JavaScript. It is
+measured with the same gesture, trace categories, tab and window, shuffled into
+every round like a section. Its numbers are the ceiling that this machine,
+this Chrome and this measurement method reach *right now*; a landing section
+can at best match it. On the development laptop the ceiling itself moved a lot
+with background load (from ~63 to ~139 presented fps within one hour), which is
+why sections are judged relative to it within a round and why a comparison
+warns when the calibration changed between two sessions. During the validation
+session a video player (`mpv`) used ~50 % of the iGPU's 3D engine and the
+calibration page reached only 96 [95–100] presented fps of 165 — which the
+report's "Other GPU load" line now makes visible.
+
+### Comparing sessions
+
+`--compare a.json b.json` (or `compare.mjs`) prints, per metric and target,
+`before → after (Δ)` tagged **better** / **worse**, or `~noise` when either
+median lies inside the other session's run-to-run IQR. The "relative to
+calibration" rows are compared the same way. It warns when the sessions are not
+like for like (headed/headless, DPR, viewport, GPU, gesture parameters, trace
+level) and when the calibration page itself changed beyond noise (the machine
+was in a different state: trust the relative rows more).
+
+Ablation examples (each a separate session; compare against a baseline session
+taken right before):
+
+```bash
+node scripts/perf/scroll.mjs --label=baseline
+# canvas hidden: what does compositing the canvas cost while scrolling? (the JS still draws)
+node scripts/perf/scroll.mjs --label=no-canvas --sections=canvas \
+  --css='#flagship-section canvas{visibility:hidden!important}' \
+  --css-check='#flagship-section canvas|visibility|hidden'
+# atlases blocked: the canvas has nothing to decode or draw
+node scripts/perf/scroll.mjs --label=no-atlas --block='*frame-atlases/atlas-*'
+node scripts/perf/scroll.mjs --compare scripts/perf/results/baseline.json scripts/perf/results/no-atlas.json
+```
+
+### Known limits
+
+- **Synthetic input.** The mouse-source gesture sends precise-delta wheel events
+  from a browser-side generator (~300 events/s observed), not from a device.
+  On the development laptop ScrollJankV4 attributes most missed vsyncs — on the
+  calibration page too — to `MISSED_VSYNC_DUE_TO_DECELERATING_INPUT_FRAME_DELIVERY`
+  and `MISSED_VSYNC_DURING_FAST_SCROLL`: input delivery itself is irregular under
+  load. Absolute numbers are therefore not what a hand on a touchpad sees; read
+  sections against the calibration page. `--source=touch` turns on touch
+  emulation (this changes `pointer`/`hover` media queries, so the layout may
+  differ). Wheel "notches" sent with `Input.dispatchMouseEvent` jump instantly
+  (no smooth-scroll animation) and are not used.
+- **Headed vs headless.** Headed (default) presents through DWM to the real
+  panel: `Display::FrameDisplayed` is real scan-out time and the vsync is the
+  panel's. New headless (`--headless`) on the development laptop still rendered
+  on the Intel GPU (ANGLE/D3D11) and reported the 165 Hz vsync, but nothing is
+  scanned out, so its "presented" frames are frames produced (headless also
+  runs at DPR 1 unless `--dpr` is given). The headed window must stay visible
+  and unobstructed for the whole session (don't use the machine; an occluded
+  window can be throttled). Even a pure compositor CSS animation on an
+  otherwise empty page presented only ~75–115 of 165 frames/s on this laptop
+  during testing, with other applications on the same iGPU — the ceiling is
+  the machine, not the site.
+- **iGPU vs dGPU.** On a hybrid laptop Chrome renders on the adapter that drives
+  its display (here the Intel UHD drives the internal 2560×1600 165 Hz panel;
+  the RTX 4060 stays idle). The report records the ANGLE renderer string; runs on
+  another adapter or display (or a Windows per-app GPU preference) are not
+  comparable.
+- **DPR.** Native by default (1.33 on the development laptop: Windows display
+  scaling), so layers and the canvas are rasterized at physical resolution, as
+  for a visitor. `--dpr=N` passes `--force-device-scale-factor=N`, which changes
+  raster cost; compare like with like. The viewport is the window's inner size,
+  set with `Browser.setWindowBounds` (recorded per run; a warning is printed if
+  it could not be matched, e.g. a window larger than the screen). Section
+  geometry depends on the viewport.
+- **Tracing overhead.** `--trace=full` adds the `devtools.timeline` categories
+  for the main-thread metrics; `--trace=lean` records only `viz` +
+  `input.scrolling`. On the calibration page, viz-only, scroll-only and full
+  traces gave the same presented fps within noise, but pages with heavy
+  main-thread work pay more for `devtools.timeline`. The calibration page is
+  traced the same way, so the overhead is part of the ceiling.
+- **Host load.** Whole-machine CPU busy % is recorded per run (14–60 % during
+  validation, from other work on the laptop), and on Windows the GPU 3D load of
+  other processes before every round. The iGPU is shared with DWM and every
+  other application on the panel: a video player, a game or a camera app in the
+  background costs the page presented frames. Close them, re-run the baseline
+  right before an "after" session, and never compare against an old result
+  without the calibration check.
 
 ## Page-load UX: `ux.mjs`
 
@@ -198,8 +431,36 @@ warm "/" visit, the ready signal used, and the link-preview tags.
 
 ## Scrollytelling scrub harness: `measure.mjs`
 
-Drives stock Chrome over CDP with real wheel events (so Lenis actually
-advances) and records latency, network, residency, and main-thread cost.
+Drives stock Chrome over CDP, scrubs the **whole page** top → bottom → top
+`--cycles` times (default 6) with real scroll gestures
+(`Input.synthesizeScrollGesture`, `--speed` px/s, default 3000) and records
+presentation and jank, network, residency and main-thread cost. For
+section-by-section smoothness with repeated runs and a calibration page, use
+`scroll.mjs`; `measure.mjs` answers "what does a full scrub cost".
+
+Frame metrics come from the Chrome trace of each gesture (`viz` +
+`input.scrolling`, the same analysis as `scroll.mjs`), pooled over all gestures:
+
+| field | meaning |
+|---|---|
+| `presentedFps`, `refreshHz`, `vsyncMs` | presented frames per second while scrolling; the display's vsync |
+| `frameCount` | presented frames (distinct presentation timestamps) |
+| `frameP50` / `frameP95` / `frameP99` / `frameMax` | presentation-to-presentation intervals in ms (were rAF intervals before) |
+| `dropped`, `droppedPct` | vsyncs on which no new frame was presented while scrolling (Σ round(interval ÷ vsync) − 1), and their share of all vsyncs — relative to the observed vsync, so meaningful at 165 Hz (the old rule counted only rAF gaps > 32 ms) |
+| `longIntervalPct` | share of intervals > 1.5 × vsync |
+| `sjJankyPct`, `sjMissedVsyncs` | Chrome's ScrollJankV4 janky-frame share and missed vsyncs |
+| `latencyP50` / `latencyP95` | input → presentation of scroll updates that drew a frame (EventLatency) |
+| `scrubGestures`, `scrubNotes` | per gesture: direction, from/to scroll position, fps, janky %; notes if a gesture did not reach its target |
+
+Long tasks (`longtaskCount`, `longtaskTotal`) still come from a
+`PerformanceObserver` in the page, script/task time from
+`Performance.getMetrics`. `--trace=none` scrubs with the same gestures but
+without tracing (frame fields `null`), for residency numbers without trace
+buffers; in validation (headless, one cycle) tracing did not raise them beyond
+run-to-run noise (RSS after one scrub 1295–1433 MB traced, 1471–1473 MB
+untraced), so the default stays traced and `envelope.mjs` is unaffected. The old scrub called `window.scrollBy()` inside
+`requestAnimationFrame`, which forced main-thread scrolling (not what visitors
+get) and could not see missed 6 ms deadlines at 165 Hz.
 
 ```bash
 npm run perf:measure          # full scenario suite, prints PERF_RESULT JSON
@@ -211,6 +472,17 @@ node scripts/perf/envelope.mjs --dir=dist/client            # envelope against t
 node scripts/perf/envelope.mjs --dir=build --budgets=cra     # envelope with the CRA (42-atlas) budgets
 node scripts/perf/shot.mjs out/shot [--dir=... | --url=...] # canvas screenshots for visual regression
 ```
+
+`shot.mjs out/shot [--section=flagship-section] [--fractions=0.3,0.5,0.7]
+[--scroll=instant|gesture] [--headed]` writes `out/shot-30.png` … at those
+fractions of the section's scroll range (a GSAP pin-spacer's length for pinned
+sections). It scrolls with `window.scrollTo({behavior: 'instant'})` or a real
+gesture (`--scroll=gesture`), then **asserts** the scroll position (±2 px) and
+that the section covers the viewport centre, waits for network idle and for the
+section's `<canvas>` to stop changing (downscaled pixel signature stable for
+600 ms) and not be blank, and only then captures. A failed assertion or a blank
+canvas exits with code 1 (the old version dispatched synthetic `WheelEvent`s,
+which no longer scroll the page, so every screenshot showed the hero).
 
 In `--dir` mode these scripts keep the original server semantics (SPA
 fallback, `Cache-Control: no-store`) so numbers stay comparable with the table
@@ -246,7 +518,22 @@ below; add `--cf-cache` to use the Cloudflare-like caching instead.
 | `no-backdrop` (alias `nobackdrop`) | `backdrop-filter` removed |
 | `no-filter` | animated `filter` removed |
 | `no-atlas-no-backdrop` | combined control |
-| `scale-50` / `scale-33` / `nodraw` | `?atlasScale=` / `?noCanvasDraw=1` experiments (need the optimized ScrollCanvas) |
+| `no-fixed-bg` / `no-blend` / `no-fixed-bg-no-blend` | `background-attachment: fixed` and/or `mix-blend-mode` forced off |
+
+CSS ablations are injected with `Page.addScriptToEvaluateOnNewDocument` and
+wait for `document.head` (`injectCss`; the script runs before `<html>` exists,
+so appending to `document.documentElement` silently did nothing). After load
+every ablation is **verified**: the injected `<style data-perf-ablation>`
+elements must exist and parse, and no element may have a computed value other
+than the forced one (`backdrop-filter: none`, `filter: none`,
+`background-attachment: scroll`, `mix-blend-mode: normal`); otherwise the
+scenario throws and the run exits with code 1. The result records
+`cssVerification`. **Removed:** `scale-50`, `scale-33`
+(`?atlasScale=`) and `nodraw` (`?noCanvasDraw=1`) — the current ScrollCanvas
+reads neither parameter, so they silently measured the baseline. There is no
+switch that turns canvas drawing off today; the closest controls are `no-atlas`
+(nothing to decode or draw) and hiding the canvas with a `scroll.mjs --css`
+ablation (then it is not composited, although the JS still draws into it).
 
 ### The model
 
@@ -295,9 +582,11 @@ one-cycle `baseline` run on it measured 42 atlas requests / 20.1 MB and
 
 ### Notes / unverified
 
-- Headless Chrome uses software rasterization, so absolute frame times are not
-  representative of a GPU session. `backdrop-filter` GPU cost could not be
-  isolated headlessly; it remains a structural hypothesis, not a measured fact.
+- Old headless Chrome used software rasterization. New headless (Chrome 154,
+  `--headless=new`) on the development laptop rasterizes and composites on the
+  Intel iGPU (ANGLE/D3D11) like headed Chrome, but nothing is scanned out and
+  it runs at DPR 1; frame numbers are still not those of a visible window. Use
+  `scroll.mjs` (headed by default) for smoothness.
 - `performance.measureUserAgentSpecificMemory()` is unavailable in this setup;
   residency is measured from the Chrome process tree RSS via PowerShell.
 
@@ -305,11 +594,16 @@ one-cycle `baseline` run on it measured 42 atlas requests / 20.1 MB and
 
 | file | role |
 |---|---|
+| `scroll.mjs` | scroll-smoothness benchmark (JSON + Markdown, `--compare`) |
 | `ux.mjs` | page-load UX + link-preview runner (JSON + Markdown) |
-| `compare.mjs` | before/after Markdown table |
+| `compare.mjs` | before/after Markdown table (`ux.mjs` or `scroll.mjs` results) |
 | `linkpreview.mjs` | standalone link-preview check |
 | `measure.mjs`, `envelope.mjs`, `shot.mjs` | scrollytelling scrub harness, budget lock, screenshots |
 | `lib/static-server.mjs` | Cloudflare-like static server (also used by `scripts/serve.mjs`) |
+| `lib/static-server.test.mjs` | `_headers` self-test (`node scripts/perf/lib/static-server.test.mjs`) |
+| `lib/scroll-trace.mjs` | real scroll gestures, tracing, trace analysis (presentation, ScrollJankV4, EventLatency, main thread) — shared by `scroll.mjs` and `measure.mjs` |
+| `lib/scroll-report.mjs` | `scroll.mjs` Markdown report and comparison |
+| `lib/calibration.mjs` | the calibration page and its server |
 | `lib/cdp.mjs` | CDP client + Chrome launcher |
 | `lib/pageload.mjs` | per-visit measurement, profiles, metric definitions |
 | `lib/linkpreview.mjs`, `lib/report.mjs`, `lib/target.mjs` | bot view, Markdown rendering, `--dir`/`--url` handling |

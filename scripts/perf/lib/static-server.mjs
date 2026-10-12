@@ -14,8 +14,9 @@
 //     "none"                   empty HTTP 404
 //     "auto" (default)         404-page if <dir>/404.html exists, else SPA
 //   _headers   (Cloudflare format: path patterns with * and :placeholder,
-//               "Name: value" lines, "! Name" removals; values from several
-//               matching rules are joined with ", ")
+//               "Name: value" lines, "! Name" removals; matching rules apply in
+//               file order, each one's removals before its sets; values from
+//               several matching rules are joined with ", ")
 //   _redirects (static + splat rules; 200 = rewrite)
 //   Default caching like Cloudflare static assets: strong ETag,
 //   "Cache-Control: public, max-age=0, must-revalidate", 304 on If-None-Match.
@@ -97,21 +98,30 @@ export function parseRedirectsFile(text) {
   return rules;
 }
 
-function applyHeaderRules(rules, urlPath, headers) {
+// Cloudflare semantics: every matching rule applies, in file order. Within one rule the
+// "! Name" removals run first (dropping what earlier rules set, and the default header),
+// then the rule's "Name: value" lines; a header set by several rules is joined with ", ".
+// So "/frame-atlases/*  Cache-Control: immutable" followed by
+// "/frame-atlases/manifest.json  ! Cache-Control / Cache-Control: max-age=0" leaves only the
+// manifest rule's value. Mutates `headers` (lower-case keys).
+export function applyHeaderRules(rules, urlPath, headers) {
   const custom = new Map(); // lower name -> [name, value]
-  const removed = new Set();
+  const removed = new Set(); // removed by a rule and not set again by a later one
+  let matched = false;
   for (const rule of rules) {
     if (!rule.regex.test(urlPath)) continue;
+    matched = true;
+    for (const k of rule.unset) { custom.delete(k); removed.add(k); }
     for (const [name, value] of rule.set) {
       const k = name.toLowerCase();
+      removed.delete(k);
       if (custom.has(k)) custom.get(k)[1] += `, ${value}`;
       else custom.set(k, [name, value]);
     }
-    for (const k of rule.unset) removed.add(k);
   }
-  for (const [k, [, value]] of custom) headers[k] = value;
   for (const k of removed) delete headers[k];
-  return { matched: custom.size + removed.size > 0 };
+  for (const [k, [, value]] of custom) headers[k] = value;
+  return { matched };
 }
 
 // ---------------------------------------------------------------- wrangler config
@@ -324,7 +334,8 @@ export async function startStaticServer({ dir, port = 8123, host = '127.0.0.1', 
   });
   return {
     server,
-    origin: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}`,
+    // port 0 = OS-assigned: report the port actually bound.
+    origin: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${server.address().port}`,
     close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
   };
 }

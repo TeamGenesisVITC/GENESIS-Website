@@ -1,11 +1,16 @@
 // scripts/perf/measure.mjs
 // Zero-dependency local performance harness for the Genesis landing page.
 // Serves ./build (or --dir=<path>, or measures --url=<origin>), drives stock
-// Google Chrome over CDP, runs scroll scenarios, and records latency /
-// resource / residency / GPU / power telemetry.
+// Google Chrome over CDP, scrubs the whole page with real scroll gestures
+// (Input.synthesizeScrollGesture: browser input -> compositor thread, like a wheel),
+// and records presentation / jank (Chrome trace), resource, residency, GPU and power
+// telemetry. For section-by-section smoothness with repeated runs use scroll.mjs.
 //
 // Usage:
 //   node scripts/perf/measure.mjs [--scenarios=baseline,...] [--headed] [--cycles=6]
+//        [--speed=3000]  (gesture speed in px/s)
+//        [--trace=lean|none]  (none: gestures without tracing, so no frame metrics; residency
+//                              numbers then carry no trace-buffer memory)
 //        [--dir=build | --dir=dist/client | --url=http://localhost:4173]
 //        [--cf-cache]   (--dir mode: Cloudflare-like caching instead of no-store)
 // Output: human summary on stderr + JSON prefixed with PERF_RESULT on stdout.
@@ -18,6 +23,7 @@ import { promisify } from 'node:util';
 import { CDP, httpJson, sleep, launchChrome as launchStockChrome } from './lib/cdp.mjs';
 import { parseArgs, resolveTarget, CDP_PORT_DEFAULT, ROOT } from './lib/target.mjs';
 import { imageDims, readAtlasManifest } from './lib/image-dims.mjs';
+import { TRACE_CATEGORIES, traceDuring, scrollGesture, analyzeScrollTrace, quantile } from './lib/scroll-trace.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -38,6 +44,10 @@ function isAtlasUrl(url, mime = '') {
 // Fallback for the decoded-memory model when no atlas body could be read.
 const ATLAS_MANIFEST = readAtlasManifest(ROOT);
 const DEFAULT_CYCLES = ARGS.cycles ? parseInt(ARGS.cycles, 10) : 6;
+// Scrub speed. The old rAF scrub moved 160 px per frame (~9600 px/s at 60 Hz); a whole-page
+// gesture at 3000 px/s keeps a 6-cycle run near a minute while staying a plausible fast scroll.
+const SCRUB_SPEED = parseInt(ARGS.speed, 10) || 3000;
+const TRACE = ARGS.trace === 'none' ? 'none' : 'lean';
 
 // ---------------------------------------------------------------- telemetry
 // Sum RSS (working set) of this run's Chrome process tree.
@@ -138,59 +148,123 @@ function launchChrome() {
 }
 
 // ---------------------------------------------------------------- page helpers
+// Long tasks + page summary. Frame timing comes from the Chrome trace (scrub() below), not
+// from requestAnimationFrame: rAF intervals say nothing about what the compositor presented
+// during a compositor-thread scroll.
 const PERF_HELPERS_SRC = `(function(){
   if (window.__perf) return;
-  const p = { frames: [], longtasks: [], running: false, lt: null };
+  const p = { longtasks: [], lt: null };
   window.__perf = p;
   window.__perfStart = function(){
-    p.frames = []; p.longtasks = []; p.running = true;
+    p.longtasks = [];
     try { p.lt = new PerformanceObserver(function(l){ for (const e of l.getEntries()) p.longtasks.push(e.duration); }); p.lt.observe({entryTypes:['longtask']}); } catch(e){}
-    let last = performance.now();
-    p.tick = function(t){ if(!p.running) return; p.frames.push(t-last); last = t; requestAnimationFrame(p.tick); };
-    requestAnimationFrame(p.tick);
-  };
-  window.__perfScrub = async function(cycles, maxMs){
-    const maxY = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-    for (let c=0;c<cycles;c++){
-      const t0 = performance.now();
-      let dir = 1;
-      await new Promise(function(resolve){
-        const step = function(){
-          const y = window.scrollY;
-          if (dir > 0 && y >= maxY - 2) dir = -1;
-          else if (dir < 0 && y <= 2) { resolve(); return; }
-          if (performance.now() - t0 > maxMs) { resolve(); return; }
-          // Scroll the page itself: a synthetic WheelEvent only moved pages that hijack the
-          // wheel in JS (the old Lenis setup); the site now uses native scrolling.
-          window.scrollBy({ top: dir * 160, behavior: 'instant' }); // html has scroll-behavior: smooth
-          requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      });
-    }
-    return true;
   };
   window.__perfStop = function(){
-    p.running = false; if (p.lt) p.lt.disconnect();
-    const f = p.frames.slice(); f.shift();
-    const s = f.slice().sort(function(a,b){return a-b;});
-    const pct = function(q){ return s.length ? s[Math.min(s.length-1, Math.floor(q*s.length))] : null; };
+    if (p.lt) p.lt.disconnect();
     const res = performance.getEntriesByType('resource'); let transfer=0, decoded=0;
     for (const r of res){ transfer += r.transferSize||0; decoded += r.decodedBodySize||0; }
     let glRenderer='n/a';
     try { const c=document.createElement('canvas'); const gl=c.getContext('webgl'); const e=gl&&gl.getExtension('WEBGL_debug_renderer_info'); if(e) glRenderer=gl.getParameter(e.UNMASKED_RENDERER_WEBGL); } catch(e){}
-    return { frameCount:s.length, frameP50:pct(0.5), frameP95:pct(0.95), frameP99:pct(0.99), frameMax:s[s.length-1]||null, dropped:s.filter(function(x){return x>32;}).length, longtaskCount:p.longtasks.length, longtaskTotal:p.longtasks.reduce(function(a,b){return a+b;},0), scrollHeight:document.documentElement.scrollHeight, domNodes:document.getElementsByTagName('*').length, heapUsedMB: performance.memory?performance.memory.usedJSHeapSize/1048576:null, resourceTransferMB: transfer/1048576, resourceCount: res.length, glRenderer, sc: window.__sc || null };
+    return { longtaskCount:p.longtasks.length, longtaskTotal:p.longtasks.reduce(function(a,b){return a+b;},0), scrollHeight:document.documentElement.scrollHeight, domNodes:document.getElementsByTagName('*').length, heapUsedMB: performance.memory?performance.memory.usedJSHeapSize/1048576:null, resourceTransferMB: transfer/1048576, resourceCount: res.length, glRenderer, sc: window.__sc || null };
   };
 })();`;
+
+// ---------------------------------------------------------------- scrub
+// One cycle = a real scroll gesture from the top to the bottom of the page, then back up.
+// Each gesture is traced (viz + input.scrolling only, to keep long traces small) and the
+// presentation intervals of all gestures are pooled into `acc`.
+const pageY = async (cdp) => (await cdp.send('Runtime.evaluate', { expression: '({ y: scrollY, max: document.documentElement.scrollHeight - innerHeight, w: innerWidth, h: innerHeight })', returnByValue: true })).result.value;
+
+async function scrub(cdp, cycles, acc) {
+  for (let c = 0; c < cycles; c++) {
+    for (const dir of [1, -1]) {
+      const st = await pageY(cdp);
+      const dy = dir > 0 ? st.max - st.y : -st.y;
+      if (Math.abs(dy) < 2) continue;
+      const gesture = () => scrollGesture(cdp, { x: st.w / 2, y: st.h / 2, dy, speed: SCRUB_SPEED });
+      if (TRACE === 'none') {
+        await gesture();
+        const end = await pageY(cdp);
+        acc.gestures.push({ dir: dir > 0 ? 'down' : 'up', from: Math.round(st.y), to: Math.round(end.y), requested: Math.round(dy) });
+        if (Math.abs(end.y - (st.y + dy)) > 8) acc.notes.push(`gesture ${dir > 0 ? 'down' : 'up'} reached ${Math.round(end.y)} instead of ${Math.round(st.y + dy)}`);
+        continue;
+      }
+      const { events, dataLoss } = await traceDuring(cdp, TRACE_CATEGORIES.lean, gesture, { lead: 50, tail: 150 });
+      const m = analyzeScrollTrace(events, { raw: true });
+      const end = await pageY(cdp);
+      acc.gestures.push({ dir: dir > 0 ? 'down' : 'up', from: Math.round(st.y), to: Math.round(end.y), requested: Math.round(dy), presentedFps: m.presentedFps, sjJankyPct: m.sjJankyPct, dataLoss });
+      if (Math.abs(end.y - (st.y + dy)) > 8) acc.notes.push(`gesture ${dir > 0 ? 'down' : 'up'} reached ${Math.round(end.y)} instead of ${Math.round(st.y + dy)}`);
+      if (m.vsyncMs) acc.vsyncMs.push(m.vsyncMs);
+      acc.intervals.push(...m.raw.intervalsMs);
+      acc.presented += m.presentedFrames || 0;
+      acc.latencies.push(...m.raw.latenciesMs);
+      acc.windowMs += m.raw.windowMs;
+      acc.sjFrames += m.sjFrames || 0;
+      acc.sjJanky += m.sjJankyFrames || 0;
+      acc.sjMissed += m.sjMissedVsyncs || 0;
+    }
+  }
+}
+
+function scrubSummary(acc) {
+  const vsyncMs = acc.vsyncMs.length ? quantile(acc.vsyncMs, 0.5) : null;
+  const iv = acc.intervals;
+  const r = (v, d = 2) => (v == null ? null : +v.toFixed(d));
+  // "dropped" = vsyncs on which no new frame was presented while the page was scrolling
+  // (relative to the display's own vsync interval, so it is meaningful at 165 Hz).
+  const missed = vsyncMs ? iv.reduce((s, d) => s + Math.max(0, Math.round(d / vsyncMs) - 1), 0) : null;
+  return {
+    vsyncMs: r(vsyncMs, 3),
+    refreshHz: vsyncMs ? r(1000 / vsyncMs, 1) : null,
+    gestures: acc.gestures.length,
+    frameCount: acc.presented, // presented frames (distinct presentation timestamps) while scrolling
+    presentedFps: acc.windowMs > 0 ? r(iv.length / (acc.windowMs / 1000), 1) : null,
+    frameP50: r(quantile(iv, 0.5)),
+    frameP95: r(quantile(iv, 0.95)),
+    frameP99: r(quantile(iv, 0.99)),
+    frameMax: iv.length ? r(Math.max(...iv)) : null,
+    dropped: missed,
+    droppedPct: missed != null && iv.length ? r((100 * missed) / (missed + iv.length), 1) : null,
+    longIntervalPct: vsyncMs && iv.length ? r((100 * iv.filter((d) => d > 1.5 * vsyncMs).length) / iv.length, 1) : null,
+    sjJankyPct: acc.sjFrames ? r((100 * acc.sjJanky) / acc.sjFrames, 1) : null,
+    sjMissedVsyncs: acc.sjFrames ? acc.sjMissed : null,
+    latencyP50: r(quantile(acc.latencies, 0.5), 1),
+    latencyP95: r(quantile(acc.latencies, 0.95), 1),
+    scrubNotes: acc.notes,
+    scrubGestures: acc.gestures,
+  };
+}
 
 // ---------------------------------------------------------------- scenario
 // Injects a stylesheet into every new document. The script runs before <html> exists, so a
 // plain document.documentElement.appendChild() threw and silently did nothing: wait for the
 // head instead.
-const injectCss = (css) => `(() => { const add = () => { const s = document.createElement("style"); s.textContent = ${JSON.stringify(css)}; (document.head || document.documentElement).appendChild(s); }; if (document.head) add(); else document.addEventListener("DOMContentLoaded", add, { once: true }); })();`;
+const injectCss = (css) => `(() => { const add = () => { const s = document.createElement("style"); s.setAttribute("data-perf-ablation", ""); s.textContent = ${JSON.stringify(css)}; (document.head || document.documentElement).appendChild(s); }; if (document.head) add(); else document.addEventListener("DOMContentLoaded", add, { once: true }); })();`;
+
+// After load, proves that every CSS ablation applied: the injected <style>s exist and parsed,
+// and no element's computed value of the ablated property differs from the forced one
+// (multi-value properties like background-attachment: every comma-separated item). An
+// ablation that silently did nothing measures the baseline under another name: fail loudly.
+const verifyCssExpr = (checks) => `(() => {
+  const styles = [...document.querySelectorAll('style[data-perf-ablation]')];
+  const rules = styles.reduce((n, s) => n + (s.sheet ? s.sheet.cssRules.length : 0), 0);
+  const all = document.querySelectorAll('*');
+  const out = { styles: styles.length, rules, elements: all.length, checks: [] };
+  for (const [prop, expected] of ${JSON.stringify(checks)}) {
+    let bad = 0; let example = null;
+    for (const el of all) {
+      const v = getComputedStyle(el).getPropertyValue(prop).trim();
+      if (v && !v.split(',').every((x) => x.trim() === expected)) { bad++; if (!example) example = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ' = ' + v; }
+    }
+    out.checks.push({ prop, expected, bad, example });
+  }
+  return out;
+})()`;
+
+const BACKDROP_CHECKS = [['backdrop-filter', 'none']];
 
 async function runScenario(cdp, scenario) {
-  const { url, settleMs = 4000, scrubCycles = DEFAULT_CYCLES, maxMsPerCycle = 40000 } = scenario;
+  const { url, settleMs = 4000, scrubCycles = DEFAULT_CYCLES } = scenario;
   await cdp.send('Network.enable');
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
@@ -247,6 +321,25 @@ async function runScenario(cdp, scenario) {
   await loaded;
   await sleep(settleMs);
 
+  let cssVerification = null;
+  const cssChecks = [
+    ...(scenario.disableBackdrop ? BACKDROP_CHECKS : []),
+    ...(scenario.disableFilterAnim ? [['filter', 'none']] : []),
+    ...(scenario.cssChecks || []),
+  ];
+  const expectedStyles = (scenario.disableBackdrop ? 1 : 0) + (scenario.disableFilterAnim ? 1 : 0) + (scenario.extraCss ? 1 : 0);
+  if (expectedStyles) {
+    const { result: vr } = await cdp.send('Runtime.evaluate', { expression: verifyCssExpr(cssChecks), returnByValue: true });
+    const v = vr.value;
+    const problems = [];
+    if (v.styles !== expectedStyles) problems.push(`${v.styles} injected <style> element(s) in the page, expected ${expectedStyles}`);
+    if (v.rules < expectedStyles) problems.push(`only ${v.rules} CSS rule(s) parsed`);
+    for (const c of v.checks) if (c.bad) problems.push(`${c.bad} element(s) still have ${c.prop} != ${c.expected} (e.g. ${c.example})`);
+    if (problems.length) throw new Error(`scenario ${scenario.name}: CSS ablation did not apply: ${problems.join('; ')}`);
+    cssVerification = `${v.styles} style(s), ${v.rules} rule(s); ${v.checks.map((c) => `${c.prop} = ${c.expected} on all ${v.elements} elements`).join('; ') || 'no computed-style check defined'}`;
+    process.stderr.write(`    css ablation verified: ${cssVerification}\n`);
+  }
+
   // Record: memory after initial load.
   const rssLoadMB = chromeRssMB();
   const metricsBefore = await perfMetrics(cdp);
@@ -258,13 +351,16 @@ async function runScenario(cdp, scenario) {
   const wall0 = Date.now();
 
   await cdp.send('Runtime.evaluate', { expression: 'window.__perfStart()' });
+  await cdp.send('Runtime.evaluate', { expression: `window.scrollTo({ top: 0, behavior: 'instant' })` });
+  await sleep(300);
+  const acc = { gestures: [], notes: [], vsyncMs: [], intervals: [], latencies: [], windowMs: 0, presented: 0, sjFrames: 0, sjJanky: 0, sjMissed: 0 };
   // Record: memory after one full forward/reverse scrub.
-  await cdp.send('Runtime.evaluate', { expression: `window.__perfScrub(1, ${maxMsPerCycle})`, awaitPromise: true });
+  await scrub(cdp, 1, acc);
   const rssAfter1ScrubMB = chromeRssMB();
   // Record: memory after N forward/reverse scrubs.
   let rssAfterNScrubMB = rssAfter1ScrubMB;
   if (scrubCycles > 1) {
-    await cdp.send('Runtime.evaluate', { expression: `window.__perfScrub(${scrubCycles - 1}, ${maxMsPerCycle})`, awaitPromise: true });
+    await scrub(cdp, scrubCycles - 1, acc);
     rssAfterNScrubMB = chromeRssMB();
   }
 
@@ -324,6 +420,10 @@ async function runScenario(cdp, scenario) {
     cpuTaskMs: +(delta('TaskDuration') * 1000).toFixed(0),
     cpuScriptMs: +(delta('ScriptDuration') * 1000).toFixed(0),
     ...gpu,
+    cssVerification,
+    scrubSpeedPxPerS: SCRUB_SPEED,
+    scrubTrace: TRACE,
+    ...scrubSummary(acc),
     ...(result.value || {}),
   };
 }
@@ -339,12 +439,11 @@ async function main() {
     'no-atlas-no-backdrop': { name: 'no-atlas-no-backdrop', blockAtlases: true, disableBackdrop: true },
     // Page-level paint costs: fixed-attachment backgrounds repaint on every scroll in Chrome,
     // and mix-blend-mode layers force a blend pass over everything beneath them.
-    'no-fixed-bg': { name: 'no-fixed-bg', extraCss: '*{background-attachment:scroll!important;}' },
-    'no-blend': { name: 'no-blend', extraCss: '*{mix-blend-mode:normal!important;}' },
-    'no-fixed-bg-no-blend': { name: 'no-fixed-bg-no-blend', extraCss: '*{background-attachment:scroll!important;mix-blend-mode:normal!important;}' },
-    'scale-50': { name: 'scale-50', query: '?atlasScale=0.5' },
-    'scale-33': { name: 'scale-33', query: '?atlasScale=0.33' },
-    nodraw: { name: 'nodraw', query: '?noCanvasDraw=1' },
+    'no-fixed-bg': { name: 'no-fixed-bg', extraCss: '*{background-attachment:scroll!important;}', cssChecks: [['background-attachment', 'scroll']] },
+    'no-blend': { name: 'no-blend', extraCss: '*{mix-blend-mode:normal!important;}', cssChecks: [['mix-blend-mode', 'normal']] },
+    'no-fixed-bg-no-blend': { name: 'no-fixed-bg-no-blend', extraCss: '*{background-attachment:scroll!important;mix-blend-mode:normal!important;}', cssChecks: [['background-attachment', 'scroll'], ['mix-blend-mode', 'normal']] },
+    // scale-50 / scale-33 (?atlasScale=) and nodraw (?noCanvasDraw=1) were removed: the current
+    // ScrollCanvas reads neither parameter, so they measured the baseline under another name.
     'no-atlas': { name: 'no-atlas', blockAtlases: true },
     'max-8-atlas': { name: 'max-8-atlas', maxAtlases: 8 },
     'max-16-atlas': { name: 'max-16-atlas', maxAtlases: 16 },
@@ -381,7 +480,8 @@ async function main() {
       const r = await runScenario(cdp, scenario);
       results.push(r);
       process.stderr.write(`    resident=${r.pageResidentMB}MB  after1=${r.rssAfter1ScrubMB?.toFixed(0)}  after${r.scrubCycles}=${r.rssAfterNScrubMB?.toFixed(0)}  settled=${r.rssSettledMB?.toFixed(0)}\n`);
-      process.stderr.write(`    p50=${r.frameP50?.toFixed(1)} p95=${r.frameP95?.toFixed(1)} p99=${r.frameP99?.toFixed(1)}ms  longtask=${r.longtaskTotal}ms  script=${r.cpuScriptMs}ms  cpu=${r.browserCpuPct}%\n`);
+      process.stderr.write(`    presented ${r.presentedFps} fps @ ${r.refreshHz} Hz  interval p50=${r.frameP50} p95=${r.frameP95} p99=${r.frameP99} max=${r.frameMax} ms  dropped=${r.dropped} vsyncs (${r.droppedPct}%)  janky=${r.sjJankyPct}%  latency p50=${r.latencyP50} ms\n`);
+      process.stderr.write(`    longtask=${r.longtaskTotal}ms  script=${r.cpuScriptMs}ms  cpu=${r.browserCpuPct}%${r.scrubNotes.length ? '  NOTE ' + r.scrubNotes.join('; ') : ''}\n`);
       process.stderr.write(`    gpu(win)=${r.winUtilMaxPct}%/${r.winGpuMemMaxMB}MB gpu(nv)=${r.nvUtilMaxPct}%/${r.nvMemMaxMB}MB temp=${r.tempMaxC}C power=${r.powerMaxW}W gl=${r.glRenderer}\n`);
     } finally {
       if (cdp) cdp.close();
