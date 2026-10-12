@@ -126,8 +126,13 @@ export default function Navbar({ onNavigateToSection }) {
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    // Only touch React state when the value flips (see GenesisLanding's scroll handler).
+    let last = null;
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      const next = window.scrollY > 20;
+      if (next === last) return;
+      last = next;
+      setScrolled(next);
     };
 
     handleScroll();

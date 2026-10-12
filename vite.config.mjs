@@ -60,7 +60,9 @@ export default defineConfig(({ command, isPreview }) => {
               },
               {
                 name: 'vendor',
-                test: /[\\/]node_modules[\\/]/,
+                // GSAP is only imported on demand (loadScrollTrigger.js): keep it in its own
+                // lazy chunk instead of the eagerly loaded vendor chunk.
+                test: /[\\/]node_modules[\\/](?!gsap[\\/])/,
                 priority: 10,
               },
             ],

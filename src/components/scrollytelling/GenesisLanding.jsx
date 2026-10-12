@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import PrefetchLink from '../PrefetchLink';
 import Navbar from './Navbar';
 import ScrollCanvas from './ScrollCanvas';
-import StoryBeat, { beatItemVariants } from './StoryBeat';
+import StoryBeat from './StoryBeat';
 import HeroHeadline from './HeroHeadline';
 import HeroPoints from './HeroPoints';
 import ProjectsSection from './ProjectsSection';
 import TeamSection from './TeamSection';
 import './GenesisLanding.css';
-
-gsap.registerPlugin(ScrollTrigger);
 
 
 /**
@@ -82,6 +78,7 @@ export default function GenesisLanding() {
   const containerRef = useRef(null);
   const targetProgressRef = useRef(0);
   const [activeBeat, setActiveBeat] = useState(0);
+  const activeBeatRef = useRef(0);
   const [legalModal, setLegalModal] = useState(null); // 'tos' | 'privacy' | 'charter' | null
   const prefersReducedMotion = useReducedMotion();
   const legalTriggerRef = useRef(null);
@@ -91,8 +88,6 @@ export default function GenesisLanding() {
   // with no JavaScript in the path (no wheel interception, no smoothing library). Everything
   // scroll-linked reads the position from this passive listener and follows it exactly.
   useEffect(() => {
-    gsap.ticker.lagSmoothing(0);
-
     const onScroll = () => {
       const container = containerRef.current;
       if (!container) return;
@@ -104,14 +99,14 @@ export default function GenesisLanding() {
       targetProgressRef.current = progress;
 
       // Determine active storytelling beat in the 5-beat flagship showcase
-      let beat = 0;
-      if (progress < 0.21) beat = 0;
-      else if (progress < 0.45) beat = 1;
-      else if (progress < 0.69) beat = 2;
-      else if (progress < 0.87) beat = 3;
-      else beat = 4;
+      const beat = progress < 0.21 ? 0 : progress < 0.45 ? 1 : progress < 0.69 ? 2 : progress < 0.87 ? 3 : 4;
 
-      setActiveBeat((prev) => (prev !== beat ? beat : prev));
+      // Only touch React state when the beat changes: a setState call on every scroll event
+      // (even with an unchanged value) can still schedule a React render task per frame.
+      if (beat !== activeBeatRef.current) {
+        activeBeatRef.current = beat;
+        setActiveBeat(beat);
+      }
     };
 
     onScroll();
@@ -436,21 +431,21 @@ export default function GenesisLanding() {
 
           {/* ── Beat 01: Platform Introduction & Physical Architecture (0–20% Progress) ── */}
           <StoryBeat id="beat-mechanical" visible={activeBeat === 0} align="right">
-            <m.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 01</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">MEET OUR CURRENT FLAGSHIP · PROJECT KP-17</span>
-            </m.div>
+            </div>
 
-            <m.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Meet KP-17.<br />Our first bipedal platform.
-            </m.h2>
+            </h2>
 
-            <m.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               KP-17 is Team Genesis's initial physical research platform. Built upon an accessible 17-DOF humanoid kinematic frame, our engineering objective is bringing the hardware to life: integrating custom sensor feedback architectures, low-latency electronics, and closed-loop self-balancing software.
-            </m.p>
+            </p>
 
-            <m.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -465,26 +460,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">An accessible anodized aluminum chassis serving as our testbed for sensor fusion and balance algorithms.</span>
                 </div>
               </div>
-            </m.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 02: Powertrain & Joint Actuation (20–45% Progress) ── */}
           <StoryBeat id="beat-actuation" visible={activeBeat === 1} align="left">
-            <m.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 02</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">JOINT POWERTRAIN &amp; ACTUATION</span>
-            </m.div>
+            </div>
 
-            <m.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               High-torque joint actuation<br />&amp; position tracking.
-            </m.h2>
+            </h2>
 
-            <m.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               Each joint incorporates high-torque digital actuators with precision metal reduction gearing, delivering the requisite joint torque and speed for multi-axis limb positioning and dynamic stance control.
-            </m.p>
+            </p>
 
-            <m.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -499,26 +494,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Continuous angular position tracking feeding real-time joint state into the kinematics engine.</span>
                 </div>
               </div>
-            </m.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 03: Sensor Feedback Architecture (45–70% Progress) ── */}
           <StoryBeat id="beat-electrical" visible={activeBeat === 2} align="right">
-            <m.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 03</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">SENSOR FEEDBACK &amp; ELECTRONICS</span>
-            </m.div>
+            </div>
 
-            <m.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Sensor feedback architecture<br />&amp; real-time bus.
-            </m.h2>
+            </h2>
 
-            <m.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               We are actively developing KP-17's comprehensive sensor feedback architecture, fusing 6-axis IMUs, foot ground-contact sensors, and joint current monitors across a deterministic high-speed CAN-FD communication bus.
-            </m.p>
+            </p>
 
-            <m.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -533,26 +528,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Dedicated high-current actuator power rails separated from sensitive compute electronics.</span>
                 </div>
               </div>
-            </m.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 04: Software & Self-Balancing Control (70–88% Progress) ── */}
           <StoryBeat id="beat-software" visible={activeBeat === 3} align="left">
-            <m.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 04</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">SOFTWARE &amp; SELF-BALANCING CONTROL</span>
-            </m.div>
+            </div>
 
-            <m.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               Bringing hardware to life<br />with self-balancing control.
-            </m.h2>
+            </h2>
 
-            <m.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               Our primary software sprint focuses on closing the autonomous balance loop. We are implementing dynamic Zero-Moment Point (ZMP) control, whole-body Model Predictive Control (MPC), and sim-to-real reinforcement learning policies to achieve true self-balancing autonomy.
-            </m.p>
+            </p>
 
-            <m.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -567,26 +562,26 @@ export default function GenesisLanding() {
                   <span className="spec-desc">Locomotion neural networks trained in physics simulation (Isaac Sim / MuJoCo) before physical transfer.</span>
                 </div>
               </div>
-            </m.div>
+            </div>
           </StoryBeat>
 
           {/* ── Beat 05: Foundation for Scale (88–100% Progress) ── */}
           <StoryBeat id="beat-platform" visible={activeBeat === 4} align="right">
-            <m.div className="editorial-eyebrow-row" variants={beatItemVariants}>
+            <div className="editorial-eyebrow-row beat-item">
               <span className="mono-badge font-mono">FLAGSHIP 05</span>
               <span className="mono-divider font-mono">·</span>
               <span className="mono-subtag font-mono">THE RESEARCH FOUNDATION</span>
-            </m.div>
+            </div>
 
-            <m.h2 className="editorial-section-title font-cabinet" variants={beatItemVariants}>
+            <h2 className="editorial-section-title font-cabinet beat-item">
               The physical foundation for<br />all future Genesis bots.
-            </m.h2>
+            </h2>
 
-            <m.p className="editorial-body-text font-satoshi" variants={beatItemVariants}>
+            <p className="editorial-body-text font-satoshi beat-item">
               KP-17 is where we test theories, validate electronics, and refine algorithms. The engineering breakthroughs achieved on this platform form the foundation for all upcoming platforms like Project RKP and our competition fleet.
-            </m.p>
+            </p>
 
-            <m.div className="editorial-specs-matrix font-satoshi" variants={beatItemVariants}>
+            <div className="editorial-specs-matrix font-satoshi beat-item">
               <div className="spec-line-item">
                 <span className="spec-bullet-icon">·</span>
                 <div className="spec-text">
@@ -601,11 +596,11 @@ export default function GenesisLanding() {
                   <span className="spec-desc">A unified software codebase designed to scale across different humanoid morphologies.</span>
                 </div>
               </div>
-            </m.div>
+            </div>
 
-            <m.div className="flagship-exit-hint font-mono" variants={beatItemVariants}>
+            <div className="flagship-exit-hint font-mono beat-item">
               <span>SCROLL DOWN · EXPLORE PARALLEL R&amp;D PIPELINES ↓</span>
-            </m.div>
+            </div>
           </StoryBeat>
 
         </div>

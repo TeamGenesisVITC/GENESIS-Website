@@ -851,6 +851,74 @@ html.lenis, html.lenis body {
   color: #FFFFFF;
 }
 
+/* Story beat transitions (StoryBeat.jsx), with the poses, durations and easing of the former
+   framer-motion variants: the card enters from opacity 0, 22px lower, scale 0.98 and blur 6px
+   over 0.42s while its items fade up 12px over 0.35s, 0.02s + 0.04s apart; it exits to opacity
+   0, 18px higher, scale 0.98 and blur 6px over 0.28s, items unchanged. Hidden cards wait in the
+   enter pose with visibility: hidden (not painted, not in the accessibility tree). */
+.beat-editorial-container {
+  --beat-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  transform: translateY(22px) scale(0.98);
+  filter: blur(6px);
+  visibility: hidden;
+}
+
+.beat-editorial-container.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  visibility: visible;
+  transition:
+    opacity 0.42s var(--beat-ease),
+    transform 0.42s var(--beat-ease),
+    filter 0.42s var(--beat-ease);
+}
+
+.beat-editorial-container.is-leaving {
+  opacity: 0;
+  transform: translateY(-18px) scale(0.98);
+  filter: blur(6px);
+  visibility: hidden;
+  transition:
+    opacity 0.28s var(--beat-ease),
+    transform 0.28s var(--beat-ease),
+    filter 0.28s var(--beat-ease),
+    visibility 0s linear 0.28s;
+}
+
+.beat-editorial-container .beat-item {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.beat-editorial-container.is-visible .beat-item,
+.beat-editorial-container.is-leaving .beat-item {
+  opacity: 1;
+  transform: none;
+}
+
+.beat-editorial-container.is-visible .beat-item {
+  transition:
+    opacity 0.35s var(--beat-ease),
+    transform 0.35s var(--beat-ease);
+}
+
+.beat-editorial-container.is-visible .beat-item:nth-child(1) { transition-delay: 0.02s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(2) { transition-delay: 0.06s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(3) { transition-delay: 0.1s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(4) { transition-delay: 0.14s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(5) { transition-delay: 0.18s; }
+.beat-editorial-container.is-visible .beat-item:nth-child(6) { transition-delay: 0.22s; }
+
+/* Like framer-motion's reducedMotion="user": positions and scale jump, the fades still run. */
+@media (prefers-reduced-motion: reduce) {
+  .beat-editorial-container,
+  .beat-editorial-container .beat-item {
+    transform: none !important;
+  }
+}
+
 .editorial-eyebrow-row {
   display: flex;
   align-items: center;
@@ -2012,6 +2080,30 @@ html.lenis, html.lenis body {
   padding-top: 64px; /* Clearance for fixed top navbar */
   box-sizing: border-box;
   will-change: transform;
+}
+
+/* Pinned horizontal travel on the compositor: the wrapper is as tall as the pinned stage plus the
+   track's horizontal travel, the stage sticks, and the track's translate follows the wrapper's
+   view timeline over the stuck range. Same geometry and 1:1 mapping as the GSAP fallback in
+   TeamSection.jsx (pin from "top top" for scrollWidth - innerWidth), without a main-thread
+   update per frame. --team-slides is set from the slide count by TeamSection.jsx. */
+@supports (animation-timeline: view()) {
+  @media (min-width: 769px) and (prefers-reduced-motion: no-preference) {
+    .team-hscroll-wrapper {
+      height: calc(100vh + (var(--team-slides, 7) - 1) * 100vw);
+      view-timeline: --team-hscroll block;
+    }
+    .team-hscroll-track {
+      animation: team-hscroll linear both;
+      animation-timeline: --team-hscroll;
+      animation-range: contain 0% contain 100%;
+    }
+  }
+}
+
+@keyframes team-hscroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc((var(--team-slides, 7) - 1) * -100vw)); }
 }
 
 .team-hslide {

@@ -1,11 +1,8 @@
 "use client";
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import manifest from './atlas-manifest.json';
-
-gsap.registerPlugin(ScrollTrigger);
+import loadScrollTrigger from './loadScrollTrigger';
 
 const {
   totalFrames: TOTAL_FRAMES,
@@ -132,6 +129,78 @@ async function decodeAtlas(blob) {
     throw e;
   }
   return { source: img, release: () => { img.src = ''; URL.revokeObjectURL(url); } };
+}
+
+// Source rectangles of an atlas's frames, in frame order.
+function frameRects(atlasIdx) {
+  const count = Math.min(FRAMES_PER_ATLAS, TOTAL_FRAMES - atlasIdx * FRAMES_PER_ATLAS);
+  const rects = [];
+  for (let local = 0; local < count; local++) {
+    rects.push([
+      (local % ATLAS_COLS) * FRAME_WIDTH,
+      Math.floor(local / ATLAS_COLS) * FRAME_HEIGHT,
+      FRAME_WIDTH,
+      FRAME_HEIGHT,
+    ]);
+  }
+  return rects;
+}
+
+// Decodes atlases into per-frame bitmaps in a worker (see atlasDecoder.worker.js for why).
+// decode(blob, atlasIdx) resolves to an array of frame bitmaps, or to null when the worker path
+// is unavailable in this browser (the caller then decodes the whole atlas on its own).
+function createFrameSlicer() {
+  let worker = null;
+  let unavailable = typeof Worker !== 'function' || typeof createImageBitmap !== 'function';
+  let nextId = 1;
+  const pending = new Map(); // id -> { resolve }
+
+  const disable = () => {
+    unavailable = true;
+    if (worker) worker.terminate();
+    worker = null;
+    pending.forEach(({ resolve }) => resolve(null));
+    pending.clear();
+  };
+
+  const getWorker = () => {
+    if (unavailable) return null;
+    if (!worker) {
+      try {
+        worker = new Worker(new URL('./atlasDecoder.worker.js', import.meta.url), { type: 'module' });
+      } catch {
+        disable();
+        return null;
+      }
+      worker.onmessage = ({ data }) => {
+        const job = pending.get(data.id);
+        if (!job) {
+          // Nobody is waiting any more (disposed): free the pixels right away.
+          if (data.frames) data.frames.forEach((frame) => frame.close());
+          return;
+        }
+        pending.delete(data.id);
+        // A failure inside the worker may be a corrupt file or an engine without worker-side
+        // decoding: answer null so the caller retries on the main thread, which tells them apart.
+        job.resolve(data.error ? null : data.frames);
+      };
+      worker.onerror = disable;
+    }
+    return worker;
+  };
+
+  return {
+    decode(blob, atlasIdx) {
+      const w = getWorker();
+      if (!w) return Promise.resolve(null);
+      const id = nextId++;
+      return new Promise((resolve) => {
+        pending.set(id, { resolve });
+        w.postMessage({ id, blob, rects: frameRects(atlasIdx) });
+      });
+    },
+    dispose: disable,
+  };
 }
 
 /**
@@ -406,6 +475,7 @@ export default function ScrollCanvas({
     const blobs = new Map();       // atlasIdx -> compressed Blob, kept for re-decoding
     const decoded = new Map();     // atlasIdx -> release() for its decoded pixels
     const timers = new Set();
+    const slicer = createFrameSlicer(); // per-frame decoding off the main thread
     let activeFetches = 0;
     let activeDecodes = 0;
     let readySignalled = false;
@@ -541,15 +611,19 @@ export default function ScrollCanvas({
       }
     };
 
-    const registerAtlas = (atlasIdx, source) => {
+    // `sources` is either one bitmap per frame (worker path) or the whole atlas image.
+    const registerAtlas = (atlasIdx, sources) => {
       const first = atlasIdx * FRAMES_PER_ATLAS;
       const count = Math.min(FRAMES_PER_ATLAS, TOTAL_FRAMES - first);
+      const perFrame = Array.isArray(sources);
       for (let local = 0; local < count; local++) {
-        frames[first + local] = {
-          image: source,
-          sx: (local % ATLAS_COLS) * FRAME_WIDTH,
-          sy: Math.floor(local / ATLAS_COLS) * FRAME_HEIGHT,
-        };
+        frames[first + local] = perFrame
+          ? { image: sources[local], sx: 0, sy: 0 }
+          : {
+              image: sources,
+              sx: (local % ATLAS_COLS) * FRAME_WIDTH,
+              sy: Math.floor(local / ATLAS_COLS) * FRAME_HEIGHT,
+            };
       }
       // Repaint if the last draw had to stand in for a missing frame (or drew nothing).
       if (!lastDrawExactRef.current) {
@@ -562,7 +636,18 @@ export default function ScrollCanvas({
       status[atlasIdx] = STATUS_DECODING;
       activeDecodes++;
       try {
-        const result = await decodeAtlas(blobs.get(atlasIdx));
+        const blob = blobs.get(atlasIdx);
+        let result = null;
+        const frameBitmaps = await slicer.decode(blob, atlasIdx);
+        if (frameBitmaps) {
+          result = { source: frameBitmaps, release: () => frameBitmaps.forEach((frame) => frame.close()) };
+        } else if (!cancelled) {
+          result = await decodeAtlas(blob);
+          // The file decodes here, so the worker path is what failed: stop using it.
+          slicer.dispose();
+        } else {
+          return;
+        }
         if (cancelled || !wanted(atlasIdx)) {
           // Unmounted, or scrolled out of the window while decoding.
           result.release();
@@ -694,6 +779,7 @@ export default function ScrollCanvas({
       frames.fill(null);
       decoded.forEach((release) => release());
       decoded.clear();
+      slicer.dispose();
       blobs.clear();
     };
   }, [containerSelector, targetProgressRef]);
@@ -705,19 +791,27 @@ export default function ScrollCanvas({
     // Only needed when the parent does not track progress itself (it does on the landing page).
     if (targetProgressRef && !onProgressUpdate) return;
 
-    triggerRef.current = ScrollTrigger.create({
-      trigger: targetElement,
-      start: "top top",
-      end: "bottom bottom",
-      scrub: false, // Progress tracked directly by unified render loop
-      onUpdate: (self) => {
-        if (onProgressUpdate) {
-          onProgressUpdate(Math.min(Math.max(self.progress, 0), 1));
-        }
-      },
+    let cancelled = false;
+    loadScrollTrigger().then(({ ScrollTrigger }) => {
+      if (cancelled) return;
+      triggerRef.current = ScrollTrigger.create({
+        trigger: targetElement,
+        start: "top top",
+        end: "bottom bottom",
+        scrub: false, // Progress tracked directly by unified render loop
+        onUpdate: (self) => {
+          if (onProgressUpdate) {
+            onProgressUpdate(Math.min(Math.max(self.progress, 0), 1));
+          }
+        },
+      });
+      requestRenderRef.current();
+    }).catch((error) => {
+      console.warn('[ScrollCanvas] scroll tracking unavailable:', error);
     });
 
     return () => {
+      cancelled = true;
       if (triggerRef.current) {
         triggerRef.current.kill();
         triggerRef.current = null;

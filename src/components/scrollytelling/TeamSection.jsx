@@ -1,18 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { leadsMembers, coFounders, legacyLeads, legacyMembers } from '../../data/leadsMembers';
 import { managementMembers } from '../../data/managementMembers';
 import { mechanicalMembers } from '../../data/mechanicalMembers';
 import { electricalMembers } from '../../data/electricalMembers';
 import { softwareMembers } from '../../data/softwareMembers';
+import loadScrollTrigger from './loadScrollTrigger';
 
-gsap.registerPlugin(ScrollTrigger);
+// Where CSS scroll-driven animations exist, GenesisLanding.css moves the track ("team-hscroll"
+// keyframes on a view timeline): the compositor applies it in the same frame as the scroll, with
+// no main-thread work per frame. GSAP drives the track only where they are unsupported.
+// Keep this test identical to the @supports condition in the CSS.
+const CSS_SCROLL_TIMELINE =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: view()');
 
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
   const [hoveredMember, setHoveredMember] = useState(null);
+
+  // The CSS sizes the scroll distance (and the track's travel) from the slide count.
+  useLayoutEffect(() => {
+    const section = sectionRef.current;
+    const track = trackRef.current;
+    if (section && track) section.style.setProperty('--team-slides', String(track.children.length));
+  }, []);
 
   // GSAP Pinned Horizontal Scroll (tablet/desktop, motion allowed). On phones the slides are
   // taller than the viewport, so pinning them clipped most of the roster; there, and for
@@ -23,28 +34,39 @@ export default function TeamSection() {
   useEffect(() => {
     const section = sectionRef.current;
     const track = trackRef.current;
-    if (!section || !track) return;
+    if (!section || !track || CSS_SCROLL_TIMELINE) return undefined;
 
-    const mm = gsap.matchMedia();
-    mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
-      const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
+    let cancelled = false;
+    let mm = null;
+    loadScrollTrigger().then(({ gsap }) => {
+      if (cancelled) return;
+      mm = gsap.matchMedia();
+      mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
+        const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
-      gsap.to(track, {
-        x: getScrollAmount,
-        ease: 'none',
-        scrollTrigger: {
-          trigger: section,
-          start: 'top top',
-          end: () => `+=${track.scrollWidth - window.innerWidth}`,
-          scrub: true,
-          pin: true,
-          anticipatePin: 1,
-          invalidateOnRefresh: true,
-        },
+        gsap.to(track, {
+          x: getScrollAmount,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top top',
+            end: () => `+=${track.scrollWidth - window.innerWidth}`,
+            scrub: true,
+            pin: true,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+          },
+        });
       });
+    }).catch((error) => {
+      // The first slide stays visible; the rest of the roster is on the department pages.
+      console.warn('[TeamSection] horizontal scroll unavailable:', error);
     });
 
-    return () => mm.revert();
+    return () => {
+      cancelled = true;
+      if (mm) mm.revert();
+    };
   }, []);
 
   // Run the decorative hint animation only while the section is on screen; an endless CSS
