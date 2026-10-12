@@ -20,6 +20,9 @@ const containerVariants = {
     y: 0,
     scale: 1,
     filter: 'blur(0px)',
+    // Settle on no filter at all: a lingering blur(0px) can keep an offscreen render pass
+    // for the card on every frame while the canvas scrolls behind it.
+    transitionEnd: { filter: 'none' },
     transition: {
       duration: 0.42,
       ease: [0.16, 1, 0.3, 1],
