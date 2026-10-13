@@ -13,6 +13,17 @@ import loadScrollTrigger from './loadScrollTrigger';
 const CSS_SCROLL_TIMELINE =
   typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: view()');
 
+// The roster's idle hint, worded for the visitor's input: "hover" with a mouse, "tap" on touch
+// screens (GenesisLanding.css switches them with the hover media feature).
+function IdleHint({ hover, touch }) {
+  return (
+    <>
+      <span className="idle-hint--hover">{hover}</span>
+      <span className="idle-hint--touch">{touch}</span>
+    </>
+  );
+}
+
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
@@ -94,7 +105,7 @@ export default function TeamSection() {
   const legacyDepartments = [...new Set(legacyMembers.map((m) => m.department))];
 
   return (
-    <div id="team-section" className="team-hscroll-wrapper" ref={sectionRef}>
+    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef}>
       <div className="team-hscroll-stage">
 
         {/* ── Horizontal Track (7 Slides × 100vw) ── */}
@@ -298,6 +309,7 @@ export default function TeamSection() {
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
+                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
@@ -313,7 +325,7 @@ export default function TeamSection() {
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -383,6 +395,7 @@ export default function TeamSection() {
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
+                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
@@ -398,7 +411,7 @@ export default function TeamSection() {
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -468,6 +481,7 @@ export default function TeamSection() {
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
+                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
@@ -483,7 +497,7 @@ export default function TeamSection() {
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -563,6 +577,7 @@ export default function TeamSection() {
                           key={member.id}
                           className="engineer-chip engineer-chip--legacy"
                           onMouseEnter={() => setHoveredMember(member)}
+                          onClick={() => setHoveredMember(member)}
                           onMouseLeave={() => setHoveredMember(null)}
                         >
                           <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
@@ -581,7 +596,7 @@ export default function TeamSection() {
                   </div>
                 ) : (
                   <span className="idle-quote font-mono">
-                    HOVER OVER A NAME TO READ THEIR MOTTO
+                    <IdleHint hover="HOVER OVER A NAME TO READ THEIR MOTTO" touch="TAP A NAME TO READ THEIR MOTTO" />
                   </span>
                 )}
               </div>

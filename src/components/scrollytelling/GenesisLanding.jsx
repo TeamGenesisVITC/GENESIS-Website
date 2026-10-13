@@ -206,7 +206,7 @@ export default function GenesisLanding() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
-            STUDENT-LED HUMANOID ROBOTICS TEAM · VIT CHENNAI
+            STUDENT-LED HUMANOID ROBOTICS TEAM<span className="hero-eyebrow-sep"> · </span><span className="hero-eyebrow-place">VIT CHENNAI</span>
           </m.div>
 
           {/* Main Hero Headline with Interactive Full-Wordmark Hover [FIX 2] */}
@@ -219,8 +219,41 @@ export default function GenesisLanding() {
             <HeroHeadline text="TEAM GENESIS" />
           </m.div>
 
+          {/* ── Robot Illustration - Phones: in the flow, under the headline ──
+              The desktop illustration below is positioned beside the copy and hidden at
+              <=768px. Here the robot falls diagonally across the screen between the headline
+              and the copy, bleeding off the right edge. Only the 960px renditions are offered
+              (54 KB AVIF): enough for phone screens, and the hero's largest image on a slow
+              connection. Above 768px a 1x1 GIF source stops it from downloading at all. */}
+          <m.div
+            className="hero-robot-inline"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <picture>
+              <source
+                media="(min-width: 769px)"
+                srcSet="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+              />
+              <source type="image/avif" srcSet="/robot-hero-960.avif" />
+              <source type="image/webp" srcSet="/robot-hero-960.webp" />
+              <img
+                src="/robot-hero-960.webp"
+                alt="Team Genesis bipedal humanoid robot"
+                className="hero-robot-inline-img"
+                width="960"
+                height="536"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
+              />
+            </picture>
+          </m.div>
+
           {/* Monochrome Lucide Bullet List with 8-pt Grid Spacing */}
           <m.div
+            className="hero-points-wrap"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
@@ -249,7 +282,7 @@ export default function GenesisLanding() {
             </button>
           </m.div>
 
-          <div aria-hidden="true" style={{ height: '240px', width: '100%' }} />
+          <div aria-hidden="true" className="hero-robot-spacer" style={{ height: '240px', width: '100%' }} />
 
           </div>
 
@@ -670,7 +703,7 @@ export default function GenesisLanding() {
                   </a>
                 </div>
                 <div className="dossier-direct-contact font-satoshi">
-                  <span>genesis.vitc@gmail.com</span>
+                  <a className="contact-email" href="mailto:genesis.vitc@gmail.com">genesis.vitc@gmail.com</a>
                   <span>VIT Chennai, Tamil Nadu, India</span>
                 </div>
               </div>

@@ -2,7 +2,9 @@
 
 import React, { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import manifest from './atlas-manifest.json';
+import stillsManifest from './beat-stills.json';
 import loadScrollTrigger from './loadScrollTrigger';
+import { isLiteDevice } from '../../utils/deviceProfile';
 
 const {
   totalFrames: TOTAL_FRAMES,
@@ -47,12 +49,37 @@ const NEAR_MARGIN = '150% 0px';
 // Reduced motion: one still frame per story beat (same thresholds as GenesisLanding's beats),
 // no scrubbing and no camera glide.
 const BEAT_THRESHOLDS = [0.21, 0.45, 0.69, 0.87];
-const BEAT_STILLS = [0.1, 0.33, 0.57, 0.78, 0.94];
+const BEAT_STILLS = stillsManifest.progress; // [0.1, 0.33, 0.57, 0.78, 0.94]
 function reducedMotionStill(progress) {
   let beat = 0;
   while (beat < BEAT_THRESHOLDS.length && progress >= BEAT_THRESHOLDS[beat]) beat++;
   return BEAT_STILLS[beat];
 }
+// Lite mode (constrained devices, see utils/deviceProfile.js): the atlases are never fetched.
+// Each story beat shows one small still (scripts/generate-stills.mjs: ~80 KB for all five as
+// AVIF) of the same frame reduced motion rests on, and the sequence steps from still to still.
+const LITE = isLiteDevice();
+const STILLS = stillsManifest.stills;
+const STILLS_BASE_PATH = stillsManifest.basePath || '/frame-stills/';
+const STILL_FRAMES = STILLS.map((still) => still.frame);
+
+// Loads one still, preferring AVIF and falling back to WebP where AVIF does not decode.
+async function loadStillImage(still) {
+  for (const format of ['avif', 'webp']) {
+    if (!still[format]) continue;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = STILLS_BASE_PATH + still[format].file;
+    try {
+      await img.decode();
+      return img;
+    } catch {
+      // Unsupported format or a failed request: try the next format.
+    }
+  }
+  throw new Error(`could not load the still for frame ${still.frame}`);
+}
+
 // Canvas backing resolution. Atlas frames are only FRAME_WIDTH (960px) wide and get upscaled to
 // cover the viewport, so backing pixels beyond the frame's own resolution add GPU fill cost (each
 // frame is ~3.5 full-canvas passes) without adding detail; the compositor stretches the canvas
@@ -259,6 +286,56 @@ function getTargetOffsetX(progress, width) {
   }
 }
 
+// Portrait screens (phones, upright tablets): the story card sits at the bottom of the screen
+// (GenesisLanding.css, "Portrait sequence"), so the frame is cover-fit into the band above it,
+// from the top of the screen (behind the translucent header) to PORTRAIT_STAGE_BOTTOM, and
+// centred: the robot is centred in the frames. Elsewhere the frame covers 90% of the viewport and
+// glides left/right beside the card (getTargetOffsetX).
+const PORTRAIT_STAGE_BOTTOM = 0.58; // fraction of the viewport height
+// How far the bottom feather reaches up into the portrait stage (fraction of the frame height).
+const PORTRAIT_BOTTOM_FADE = 0.42;
+
+function isPortraitLayout(w, h) {
+  return w <= 900 && h > w;
+}
+
+// Where a frame is drawn, in CSS pixels, before the horizontal camera offset.
+function frameLayout(w, h) {
+  if (isPortraitLayout(w, h)) {
+    const stageH = Math.max(1, Math.round(h * PORTRAIT_STAGE_BOTTOM));
+    const scale = Math.max(w / DISPLAY_WIDTH, stageH / DISPLAY_HEIGHT);
+    const drawW = Math.round(DISPLAY_WIDTH * scale);
+    const drawH = Math.round(DISPLAY_HEIGHT * scale);
+    return {
+      portrait: true,
+      drawW,
+      drawH,
+      x: Math.round((w - drawW) / 2),
+      y: Math.round((stageH - drawH) / 2),
+      bottomFade: Math.round(drawH * PORTRAIT_BOTTOM_FADE),
+    };
+  }
+  const scale = Math.max(w / DISPLAY_WIDTH, h / DISPLAY_HEIGHT) * 0.90;
+  const drawW = Math.round(DISPLAY_WIDTH * scale);
+  const drawH = Math.round(DISPLAY_HEIGHT * scale);
+  return {
+    portrait: false,
+    drawW,
+    drawH,
+    x: Math.round((w / 2) - (drawW / 2)),
+    y: Math.round((h / 2) - (drawH / 2)),
+    bottomFade: 200,
+  };
+}
+
+// Whether an element is within NEAR_MARGIN (1.5 viewport heights) of the viewport right now.
+function isNearViewport(el) {
+  if (!el) return true;
+  const rect = el.getBoundingClientRect();
+  const margin = window.innerHeight * 1.5;
+  return rect.top < window.innerHeight + margin && rect.bottom > -margin;
+}
+
 function readInitialProgress(containerSelector, targetProgressRef) {
   const el = document.querySelector(containerSelector) || document.getElementById('flagship-section');
   if (el) {
@@ -363,11 +440,9 @@ export default function ScrollCanvas({
     }
     if (!frameA) return;
 
-    const scale = Math.max(w / DISPLAY_WIDTH, h / DISPLAY_HEIGHT) * 0.90;
-    const drawW = Math.round(DISPLAY_WIDTH * scale);
-    const drawH = Math.round(DISPLAY_HEIGHT * scale);
-    const x = Math.round((w / 2) - (drawW / 2) + offsetX);
-    const y = Math.round((h / 2) - (drawH / 2));
+    const layout = frameLayout(w, h);
+    const { drawW, drawH, y, bottomFade: bottomFadeH } = layout;
+    const x = Math.round(layout.x + offsetX);
 
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, w, h);
@@ -386,7 +461,7 @@ export default function ScrollCanvas({
     // Pinned edge feathering to melt seamlessly into #050505.
     // Gradients are built once per size in frame-local coords, then positioned via translate.
     const fadeCache = fadeCacheRef.current;
-    if (fadeCache.ctx !== ctx || fadeCache.drawW !== drawW || fadeCache.drawH !== drawH) {
+    if (fadeCache.ctx !== ctx || fadeCache.drawW !== drawW || fadeCache.drawH !== drawH || fadeCache.bottomFadeH !== bottomFadeH) {
       const leftFade = ctx.createLinearGradient(0, 0, 300, 0);
       leftFade.addColorStop(0, '#050505');
       leftFade.addColorStop(1, 'rgba(5,5,5,0)');
@@ -395,7 +470,7 @@ export default function ScrollCanvas({
       rightFade.addColorStop(0, 'rgba(5,5,5,0)');
       rightFade.addColorStop(1, '#050505');
 
-      const bottomFade = ctx.createLinearGradient(0, drawH - 200, 0, drawH);
+      const bottomFade = ctx.createLinearGradient(0, drawH - bottomFadeH, 0, drawH);
       bottomFade.addColorStop(0, 'rgba(5,5,5,0)');
       bottomFade.addColorStop(1, '#050505');
 
@@ -406,18 +481,22 @@ export default function ScrollCanvas({
       fadeCache.ctx = ctx;
       fadeCache.drawW = drawW;
       fadeCache.drawH = drawH;
+      fadeCache.bottomFadeH = bottomFadeH;
       fadeCache.gradients = { leftFade, rightFade, bottomFade, topFade };
     }
     const { leftFade, rightFade, bottomFade, topFade } = fadeCache.gradients;
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = leftFade;
-    ctx.fillRect(-2, 0, 302, drawH);
-    ctx.fillStyle = rightFade;
-    ctx.fillRect(drawW - 300, 0, 302, drawH);
+    // In portrait the frame is wider than the screen, so its side edges are never visible.
+    if (!layout.portrait) {
+      ctx.fillStyle = leftFade;
+      ctx.fillRect(-2, 0, 302, drawH);
+      ctx.fillStyle = rightFade;
+      ctx.fillRect(drawW - 300, 0, 302, drawH);
+    }
     ctx.fillStyle = bottomFade;
-    ctx.fillRect(0, drawH - 200, drawW, 202);
+    ctx.fillRect(0, drawH - bottomFadeH, drawW, bottomFadeH + 2);
     ctx.fillStyle = topFade;
     ctx.fillRect(0, -2, drawW, 82);
     ctx.restore();
@@ -429,8 +508,7 @@ export default function ScrollCanvas({
       const w = window.innerWidth;
       const h = window.innerHeight;
       // Match the backing store to the frame's native pixels at its drawn (cover-fit) size.
-      const drawnWidth = DISPLAY_WIDTH * Math.max(w / DISPLAY_WIDTH, h / DISPLAY_HEIGHT) * 0.90;
-      const sourceScale = FRAME_WIDTH / drawnWidth;
+      const sourceScale = FRAME_WIDTH / frameLayout(w, h).drawW;
       const dpr = Math.max(
         MIN_CANVAS_SCALE,
         Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR, sourceScale),
@@ -466,7 +544,10 @@ export default function ScrollCanvas({
   //    compressed atlases download in priority order around the scroll position and direction,
   //    and only the residency window around the current position is decoded. Atlases that leave
   //    the window are released (their compressed file is kept for a quick re-decode).
+  // (Lite mode loads the beat stills instead: see the next effect.)
   useEffect(() => {
+    if (LITE) return undefined;
+
     let cancelled = false;
     const frames = framesRef.current;
     const status = new Uint8Array(TOTAL_ATLASES);
@@ -489,6 +570,12 @@ export default function ScrollCanvas({
       critical.add(atlasOfFrame(f));
     }
     let criticalUnsettled = critical.size;   // not yet decoded or permanently failed
+    // When the page opens away from the sequence (normally: at the hero, several screens above
+    // it), nothing the sequence needs may compete with the first paint. Its first atlas then waits
+    // for the page's load event and an idle moment, or for the visitor to approach, and the site
+    // is ready at once: there is nothing on screen to wait for.
+    const startedNear = isNearViewport(document.querySelector(containerSelector) || document.getElementById('flagship-section'));
+    let warm = startedNear;
     const criticalTotalBytes = [...critical].reduce((sum, i) => sum + ((ATLASES && ATLASES[i] && ATLASES[i].bytes) || 0), 0);
     let criticalReceivedBytes = 0;
     let lastProgress = -1;
@@ -572,7 +659,9 @@ export default function ScrollCanvas({
 
     // Until the initial view is ready, its atlases get the connection and the decoder alone.
     const criticalGateOpen = () => readySignalled || criticalUnsettled === 0;
-    const canFetch = (i) => status[i] === STATUS_IDLE && (critical.has(i) || (near && criticalGateOpen()));
+    const canFetch = (i) => status[i] === STATUS_IDLE && (
+      critical.has(i) ? (warm || near) : (near && criticalGateOpen())
+    );
     const canDecode = (i) => status[i] === STATUS_STORED && wanted(i) && (critical.has(i) || criticalGateOpen());
 
     const clearFrames = (atlasIdx) => {
@@ -765,12 +854,32 @@ export default function ScrollCanvas({
 
     reportProgress(0);
     schedule(signalReady, READY_TIMEOUT_MS);
+    let idleId = null;
+    const warmUp = () => {
+      idleId = null;
+      warm = true;
+      pump();
+    };
+    const onLoaded = () => {
+      if (typeof window.requestIdleCallback === 'function') idleId = window.requestIdleCallback(warmUp, { timeout: 2000 });
+      else idleId = window.setTimeout(warmUp, 300);
+    };
+    if (!startedNear) {
+      signalReady();
+      if (document.readyState === 'complete') onLoaded();
+      else window.addEventListener('load', onLoaded, { once: true });
+    }
     pump();
 
     return () => {
       cancelled = true;
       loaderTickRef.current = () => {};
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('load', onLoaded);
+      if (idleId !== null) {
+        if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
+        window.clearTimeout(idleId);
+      }
       if (nearObserver) nearObserver.disconnect();
       timers.forEach((id) => clearTimeout(id));
       timers.clear();
@@ -781,6 +890,69 @@ export default function ScrollCanvas({
       decoded.clear();
       slicer.dispose();
       blobs.clear();
+    };
+  }, [containerSelector, targetProgressRef]);
+
+  // ── Lite mode: beat stills ──────────────────────────────────────────────────────────────
+  // The still for the initial view loads at once and reports the site ready (a failure does
+  // too: a missing still must never hold the page); the other four wait until the sequence is
+  // near the viewport. A still that fails is retried the next time the sequence comes near.
+  useEffect(() => {
+    if (!LITE) return undefined;
+    let cancelled = false;
+    let readySignalled = false;
+    const frames = framesRef.current;
+    const loading = new Set();
+
+    const signalReady = () => {
+      if (readySignalled || cancelled) return;
+      readySignalled = true;
+      if (typeof performance !== 'undefined' && performance.mark) performance.mark('genesis:ready');
+      if (STATS) STATS.readyAt = performance.now();
+      const progressCb = onLoadProgressRef.current;
+      if (progressCb) progressCb(100);
+      const readyCb = onSiteReadyRef.current;
+      if (readyCb) readyCb(true);
+    };
+
+    const load = async (n) => {
+      if (loading.has(n) || frames[STILL_FRAMES[n]]) return;
+      loading.add(n);
+      try {
+        const image = await loadStillImage(STILLS[n]);
+        if (cancelled) return;
+        frames[STILL_FRAMES[n]] = { image, sx: 0, sy: 0 };
+        if (STATS) STATS.loaded = frames.filter(Boolean).length;
+        if (!lastDrawExactRef.current) {
+          needsRedrawRef.current = true;
+          requestRenderRef.current();
+        }
+      } catch (error) {
+        if (!cancelled) console.warn('[ScrollCanvas]', error.message);
+      } finally {
+        loading.delete(n);
+      }
+    };
+
+    const initialProgress = readInitialProgress(containerSelector, targetProgressRef);
+    const initial = BEAT_STILLS.indexOf(reducedMotionStill(initialProgress));
+    load(initial).finally(signalReady);
+
+    const section = document.querySelector(containerSelector) || document.getElementById('flagship-section');
+    let nearObserver = null;
+    if (section && typeof IntersectionObserver === 'function') {
+      nearObserver = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) STILLS.forEach((_, n) => load(n));
+      }, { rootMargin: NEAR_MARGIN });
+      nearObserver.observe(section);
+    } else {
+      STILLS.forEach((_, n) => load(n));
+    }
+
+    return () => {
+      cancelled = true;
+      if (nearObserver) nearObserver.disconnect();
+      frames.fill(null);
     };
   }, [containerSelector, targetProgressRef]);
 
@@ -850,9 +1022,12 @@ export default function ScrollCanvas({
       }
       lastTargetProgress = targetProgress;
 
-      // Reduced motion: hold one still per story beat instead of scrubbing and gliding.
-      const shownProgress = reducedMotionRef.current ? reducedMotionStill(targetProgress) : targetProgress;
-      const exactTargetFrame = shownProgress * (TOTAL_FRAMES - 1);
+      // Reduced motion and lite mode: hold one still per story beat instead of scrubbing and
+      // gliding (lite mode on the whole frame its still was made from).
+      const shownProgress = reducedMotionRef.current || LITE ? reducedMotionStill(targetProgress) : targetProgress;
+      const exactTargetFrame = LITE
+        ? Math.round(shownProgress * (TOTAL_FRAMES - 1))
+        : shownProgress * (TOTAL_FRAMES - 1);
       focusFrameRef.current = exactTargetFrame;
       const { w } = dimensionsRef.current;
       const targetOffset = getTargetOffsetX(shownProgress, w);

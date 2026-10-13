@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "build:atlases": "node scripts/generate-atlases.js --scale=0.5",
+    "build:stills": "node scripts/generate-stills.mjs",
     "cf-typegen": "wrangler types",
     "deploy": "npm run build && wrangler deploy",
     "perf:measure": "node scripts/perf/measure.mjs",

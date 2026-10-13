@@ -118,6 +118,85 @@ function JsProgressBar() {
   return <m.div aria-hidden="true" className="nav-purple-progress-bar" style={{ scaleX: scrollYProgress }} />;
 }
 
+// Every section of the landing page, for the phone menu (the desktop header shows the first
+// three and "Dossier" inline).
+const MENU_SECTIONS = [
+  { id: 'origins-section', label: 'Origins' },
+  { id: 'vision-section', label: 'Thesis' },
+  { id: 'flagship-section', label: 'Platform' },
+  { id: 'projects-pipeline', label: 'Projects' },
+  { id: 'team-section', label: 'Team' },
+  { id: 'invest-section', label: 'Partner' },
+];
+
+/**
+ * Phones and narrow tablets (<= 900px, where the inline links are hidden): a 44px menu button
+ * that opens a sheet under the header with every section of the page. On a long phone page
+ * this is the only way to reach the projects or the team without scrolling through everything
+ * before them. Closes on a choice, on Escape (focus back on the button) and on a tap outside.
+ */
+function MobileMenu({ onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const firstLink = panelRef.current && panelRef.current.querySelector('a');
+    if (firstLink) firstLink.focus({ preventScroll: true });
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      if (buttonRef.current) buttonRef.current.focus();
+    };
+    const onPointerDown = (e) => {
+      const inside = (panelRef.current && panelRef.current.contains(e.target)) ||
+        (buttonRef.current && buttonRef.current.contains(e.target));
+      if (!inside) setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="nav-menu-toggle"
+        aria-expanded={open}
+        aria-controls="nav-mobile-menu"
+        aria-label={open ? 'Close the section menu' : 'Open the section menu'}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span aria-hidden="true" className="nav-menu-icon" />
+      </button>
+      {open && (
+        <nav id="nav-mobile-menu" ref={panelRef} className="nav-mobile-menu" aria-label="Sections">
+          {MENU_SECTIONS.map((section, index) => (
+            <a
+              key={section.id}
+              href={'#' + section.id}
+              onClick={(e) => {
+                e.preventDefault();
+                setOpen(false);
+                onNavigate(section.id);
+              }}
+            >
+              <span className="nav-mobile-label font-satoshi">{section.label}</span>
+              <span aria-hidden="true" className="nav-mobile-index font-mono">{String(index + 1).padStart(2, '0')}</span>
+            </a>
+          ))}
+        </nav>
+      )}
+    </>
+  );
+}
+
 /**
  * Top Navigation Bar with Persistent High-Tech Purple Scroll Progress Bar
  */
@@ -207,8 +286,13 @@ export default function Navbar({ onNavigateToSection }) {
             className="font-satoshi"
             reduceMotion={reduceMotion}
           >
-            Partner With Us
+            Partner<span className="cta-tail">&nbsp;With Us</span>
           </MagneticButton>
+          <MobileMenu
+            onNavigate={(sectionId) => {
+              if (onNavigateToSection) onNavigateToSection(sectionId);
+            }}
+          />
         </div>
       </div>
 

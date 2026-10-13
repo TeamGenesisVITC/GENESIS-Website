@@ -1,0 +1,79 @@
+{
+  "basePath": "/frame-stills/",
+  "progress": [
+    0.1,
+    0.33,
+    0.57,
+    0.78,
+    0.94
+  ],
+  "stills": [
+    {
+      "progress": 0.1,
+      "frame": 25,
+      "source": "frame_0228.webp",
+      "avif": {
+        "file": "still-0.afccc839.avif",
+        "bytes": 17642
+      },
+      "webp": {
+        "file": "still-0.f56deadf.webp",
+        "bytes": 21620
+      }
+    },
+    {
+      "progress": 0.33,
+      "frame": 82,
+      "source": "frame_0445.webp",
+      "avif": {
+        "file": "still-1.17901c0b.avif",
+        "bytes": 19023
+      },
+      "webp": {
+        "file": "still-1.0c351a8d.webp",
+        "bytes": 22362
+      }
+    },
+    {
+      "progress": 0.57,
+      "frame": 142,
+      "source": "frame_0556.webp",
+      "avif": {
+        "file": "still-2.0412cbe7.avif",
+        "bytes": 20629
+      },
+      "webp": {
+        "file": "still-2.c9b0b681.webp",
+        "bytes": 25288
+      }
+    },
+    {
+      "progress": 0.78,
+      "frame": 194,
+      "source": "frame_0781.webp",
+      "avif": {
+        "file": "still-3.492cfaee.avif",
+        "bytes": 15465
+      },
+      "webp": {
+        "file": "still-3.64949aa8.webp",
+        "bytes": 17786
+      }
+    },
+    {
+      "progress": 0.94,
+      "frame": 234,
+      "source": "frame_0883.webp",
+      "avif": {
+        "file": "still-4.52fb1e02.avif",
+        "bytes": 9238
+      },
+      "webp": {
+        "file": "still-4.33ed51dc.webp",
+        "bytes": 10168
+      }
+    }
+  ],
+  "width": 960,
+  "height": 540
+}
