@@ -224,12 +224,14 @@ export default function GenesisLanding() {
               <=768px. Here the robot falls diagonally across the screen between the headline
               and the copy, bleeding off the right edge. Only the 960px renditions are offered
               (54 KB AVIF): enough for phone screens, and the hero's largest image on a slow
-              connection. Above 768px a 1x1 GIF source stops it from downloading at all. */}
+              connection. Above 768px a 1x1 GIF source stops it from downloading at all.
+              It slides in without fading: it is the first screen's largest element, and a
+              fade would hold back the moment it counts as painted. */}
           <m.div
             className="hero-robot-inline"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ x: 40 }}
+            animate={{ x: 0 }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <picture>
               <source
