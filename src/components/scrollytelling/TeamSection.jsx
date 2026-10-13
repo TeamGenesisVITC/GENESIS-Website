@@ -27,7 +27,15 @@ function IdleHint({ hover, touch }) {
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
-  const [hoveredMember, setHoveredMember] = useState(null);
+  // The engineer whose motto is shown, and in which roster: each roster's callout (and its
+  // aria-live region) reacts only to its own engineers. On phones all four rosters are on
+  // the page at once, and a shared selection showed one motto in all four callouts.
+  const [selected, setSelected] = useState(null);
+  const select = (roster, member) => setSelected(member ? { roster, member } : null);
+  const mottoIn = (roster) => {
+    const member = selected && selected.roster === roster ? selected.member : null;
+    return member && member.quote && member.quote.trim() ? member : null;
+  };
 
   // The CSS sizes the scroll distance (and the track's travel) from the slide count.
   useLayoutEffect(() => {
@@ -309,11 +317,11 @@ export default function TeamSection() {
                         type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
-                        onFocus={() => setHoveredMember(member)}
-                        onBlur={() => setHoveredMember(null)}
-                        onClick={() => setHoveredMember(member)}
+                        onMouseEnter={() => select('mech', member)}
+                        onMouseLeave={() => select('mech', null)}
+                        onFocus={() => select('mech', member)}
+                        onBlur={() => select('mech', null)}
+                        onClick={() => select('mech', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
@@ -322,9 +330,9 @@ export default function TeamSection() {
                   </div>
 
                   <div className="roster-quote-callout font-satoshi" aria-live="polite">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                    {mottoIn('mech') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('mech').name}:</strong> "{mottoIn('mech').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
@@ -398,11 +406,11 @@ export default function TeamSection() {
                         type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
-                        onFocus={() => setHoveredMember(member)}
-                        onBlur={() => setHoveredMember(null)}
-                        onClick={() => setHoveredMember(member)}
+                        onMouseEnter={() => select('elec', member)}
+                        onMouseLeave={() => select('elec', null)}
+                        onFocus={() => select('elec', member)}
+                        onBlur={() => select('elec', null)}
+                        onClick={() => select('elec', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
@@ -411,9 +419,9 @@ export default function TeamSection() {
                   </div>
 
                   <div className="roster-quote-callout font-satoshi" aria-live="polite">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                    {mottoIn('elec') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('elec').name}:</strong> "{mottoIn('elec').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
@@ -487,11 +495,11 @@ export default function TeamSection() {
                         type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
-                        onFocus={() => setHoveredMember(member)}
-                        onBlur={() => setHoveredMember(null)}
-                        onClick={() => setHoveredMember(member)}
+                        onMouseEnter={() => select('soft', member)}
+                        onMouseLeave={() => select('soft', null)}
+                        onFocus={() => select('soft', member)}
+                        onBlur={() => select('soft', null)}
+                        onClick={() => select('soft', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
@@ -500,9 +508,9 @@ export default function TeamSection() {
                   </div>
 
                   <div className="roster-quote-callout font-satoshi" aria-live="polite">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                    {mottoIn('soft') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('soft').name}:</strong> "{mottoIn('soft').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
@@ -586,11 +594,11 @@ export default function TeamSection() {
                           type="button"
                           key={member.id}
                           className="engineer-chip engineer-chip--legacy"
-                          onMouseEnter={() => setHoveredMember(member)}
-                          onMouseLeave={() => setHoveredMember(null)}
-                          onFocus={() => setHoveredMember(member)}
-                          onBlur={() => setHoveredMember(null)}
-                          onClick={() => setHoveredMember(member)}
+                          onMouseEnter={() => select('legacy', member)}
+                          onMouseLeave={() => select('legacy', null)}
+                          onFocus={() => select('legacy', member)}
+                          onBlur={() => select('legacy', null)}
+                          onClick={() => select('legacy', member)}
                         >
                           <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                           <span className="chip-name font-satoshi">{member.name}</span>
@@ -602,9 +610,9 @@ export default function TeamSection() {
               </div>
 
               <div className="roster-quote-callout font-satoshi" aria-live="polite">
-                {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                {mottoIn('legacy') ? (
                   <div className="live-quote">
-                    <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                    <strong className="font-mono">{mottoIn('legacy').name}:</strong> "{mottoIn('legacy').quote.trim()}"
                   </div>
                 ) : (
                   <span className="idle-quote font-mono">
