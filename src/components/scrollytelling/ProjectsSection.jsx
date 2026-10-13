@@ -101,7 +101,7 @@ export default function ProjectsSection() {
   const selectedProj = PROJECTS.find((p) => p.id === activeProject) || PROJECTS[0];
 
   return (
-    <section id="projects-pipeline" tabIndex={-1} className="projects-light-section">
+    <section id="projects-pipeline" tabIndex={-1} className="projects-light-section" data-deferred-render="projects">
       <div className="projects-light-container">
         
         {/* ── Section Eyebrow & Headline ── */}
@@ -190,7 +190,7 @@ export default function ProjectsSection() {
         </div>
 
         {/* ── Deep-Dive Interactive Specification Panel ── */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <m.div
             key={selectedProj.id}
             id="project-deep-panel"

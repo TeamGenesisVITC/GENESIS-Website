@@ -5,6 +5,8 @@ import PrefetchLink from '../PrefetchLink';
 import Navbar from './Navbar';
 import ScrollCanvas from './ScrollCanvas';
 import StoryBeat from './StoryBeat';
+import stillsManifest from './beat-stills.json';
+import { scheduleDeferredRender, revealDeferredThrough } from '../../utils/deferredRender';
 import HeroHeadline from './HeroHeadline';
 import HeroPoints from './HeroPoints';
 import ProjectsSection from './ProjectsSection';
@@ -76,6 +78,7 @@ function AnimatedMetric({ targetValue, suffix = '', label }) {
 
 export default function GenesisLanding() {
   const containerRef = useRef(null);
+  const landingRef = useRef(null);
   const targetProgressRef = useRef(0);
   const [activeBeat, setActiveBeat] = useState(0);
   const activeBeatRef = useRef(0);
@@ -167,9 +170,17 @@ export default function GenesisLanding() {
 
   // Smooth jump to DOM sections (instant when the user prefers reduced motion).
   // Focus follows the jump so keyboard and screen-reader users continue from there.
+  // Sections below the first screen start with content-visibility: auto (GenesisLanding.css
+  // [data-deferred-render]); render them for real one per idle moment after load, on every
+  // visit to this page (including client-side navigations back to it).
+  useEffect(() => scheduleDeferredRender(landingRef.current), []);
+
   const scrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
     if (!el) return;
+    // A jump measured while earlier sections still use their estimated heights would land
+    // off target once they render: render them first.
+    revealDeferredThrough(el);
     window.scrollTo({
       top: el.getBoundingClientRect().top + window.scrollY - 50,
       behavior: prefersReducedMotion ? 'auto' : 'smooth',
@@ -178,7 +189,7 @@ export default function GenesisLanding() {
   };
 
   return (
-    <div className="genesis-landing">
+    <div className="genesis-landing" ref={landingRef}>
       
       {/* ── 1+2. STUDIO BACKDROP: brushed-silver gradient, soft overhead highlight and
           anodized grain, composed once into a single static fixed layer (.landing-backdrop) ── */}
@@ -200,24 +211,14 @@ export default function GenesisLanding() {
           <div className="mono-container" style={{ position: 'relative', zIndex: 2 }}>
 
           {/* Eyebrow Label */}
-          <m.div
-            className="hero-eyebrow font-mono"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          >
+          <div className="hero-eyebrow font-mono hero-intro hero-intro--eyebrow">
             STUDENT-LED HUMANOID ROBOTICS TEAM<span className="hero-eyebrow-sep"> · </span><span className="hero-eyebrow-place">VIT CHENNAI</span>
-          </m.div>
+          </div>
 
           {/* Main Hero Headline with Interactive Full-Wordmark Hover [FIX 2] */}
-          <m.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-8 block"
-          >
+          <div className="mb-8 block hero-intro hero-intro--headline">
             <HeroHeadline text="TEAM GENESIS" />
-          </m.div>
+          </div>
 
           {/* ── Robot Illustration - Phones: in the flow, under the headline ──
               The desktop illustration below is positioned beside the copy and hidden at
@@ -227,12 +228,7 @@ export default function GenesisLanding() {
               connection. Above 768px a 1x1 GIF source stops it from downloading at all.
               It slides in without fading: it is the first screen's largest element, and a
               fade would hold back the moment it counts as painted. */}
-          <m.div
-            className="hero-robot-inline"
-            initial={{ x: 40 }}
-            animate={{ x: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
+          <div className="hero-robot-inline hero-intro hero-intro--robot-inline">
             <picture>
               <source
                 media="(min-width: 769px)"
@@ -251,25 +247,15 @@ export default function GenesisLanding() {
                 decoding="async"
               />
             </picture>
-          </m.div>
+          </div>
 
           {/* Monochrome Lucide Bullet List with 8-pt Grid Spacing */}
-          <m.div
-            className="hero-points-wrap"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-          >
+          <div className="hero-points-wrap hero-intro hero-intro--points">
             <HeroPoints />
-          </m.div>
+          </div>
 
           {/* Action Row */}
-          <m.div
-            className="hero-action-row"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.28, ease: [0.16, 1, 0.3, 1] }}
-          >
+          <div className="hero-action-row hero-intro hero-intro--actions">
             <button
               className="hero-btn-primary font-satoshi"
               onClick={() => scrollToSection('flagship-section')}
@@ -282,19 +268,14 @@ export default function GenesisLanding() {
             >
               Partnership &amp; Dossier&nbsp;→
             </button>
-          </m.div>
+          </div>
 
           <div aria-hidden="true" className="hero-robot-spacer" style={{ height: '240px', width: '100%' }} />
 
           </div>
 
           {/* ── Robot Illustration - Right Side ── */}
-          <m.div
-            className="hero-robot-wrap"
-            initial={{ opacity: 0, x: 60 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          >
+          <div className="hero-robot-wrap hero-intro hero-intro--robot">
             {/* The wrapper is a fixed 1300px-wide box (hidden at <=768px), so the
                 image never drives layout. Below 768px a 1x1 GIF source stops the
                 hidden image from downloading at all. Above that, the browser picks
@@ -325,12 +306,12 @@ export default function GenesisLanding() {
                 decoding="async"
               />
             </picture>
-          </m.div>
+          </div>
 
         </section>
 
       {/* 2. ORIGINS & LAB FOUNDATION */}
-      <section id="origins-section" tabIndex={-1} className="mono-section mono-section--bordered">
+      <section id="origins-section" tabIndex={-1} className="mono-section mono-section--bordered" data-deferred-render="origins">
         <div className="mono-container">
           <div className="section-eyebrow-tag font-mono">01 · ORIGINS &amp; ETHOS</div>
 
@@ -385,7 +366,7 @@ export default function GenesisLanding() {
 
 
       {/* 3. STRATEGIC VISION & RESEARCH THESIS */}
-      <section id="vision-section" tabIndex={-1} className="mono-section mono-section--bordered">
+      <section id="vision-section" tabIndex={-1} className="mono-section mono-section--bordered" data-deferred-render="vision">
         <div className="mono-container">
           <div className="section-eyebrow-tag font-mono">02 · RESEARCH THESIS &amp; OBJECTIVES</div>
           <h2 className="monograph-title font-cabinet">Core engineering theses</h2>
@@ -458,8 +439,20 @@ export default function GenesisLanding() {
       {/* ══════════════════════════════════════════════════════════
          ACT II: FLAGSHIP SCROLLYTELLING CANVAS (5-BEAT SEQUENCE)
          ══════════════════════════════════════════════════════════ */}
-      <div id="flagship-section" tabIndex={-1} className="canvas-section" ref={containerRef}>
+      <div id="flagship-section" tabIndex={-1} className="canvas-section" ref={containerRef} data-deferred-render="flagship">
         <div className="canvas-sticky">
+          {/* Without JavaScript the sequence cannot run: one still of the robot instead (the
+              cards then stack below it, GenesisLanding.css "Without JavaScript"). */}
+          <noscript>
+            <img
+              className="flagship-still"
+              src={`${stillsManifest.basePath}${stillsManifest.stills[0].webp.file}`}
+              alt="Team Genesis KP-17 humanoid robot"
+              width={stillsManifest.width}
+              height={stillsManifest.height}
+              loading="lazy"
+            />
+          </noscript>
 
           {/* Hardware Inspection Scrollytelling Canvas */}
           <ScrollCanvas targetProgressRef={targetProgressRef} reducedMotion={prefersReducedMotion} />
@@ -648,7 +641,7 @@ export default function GenesisLanding() {
       <TeamSection />
 
       {/* ACT III: ENTERPRISE PARTNERSHIPS & TECHNICAL DOSSIER */}
-      <section id="invest-section" tabIndex={-1} className="mono-section mono-section--bordered">
+      <section id="invest-section" tabIndex={-1} className="mono-section mono-section--bordered" data-deferred-render="invest">
         <div className="mono-container">
           <div className="hero-eyebrow font-satoshi">Sponsorship</div>
           <h2 className="monograph-title font-cabinet">Fuel the next generation<br />of hardware engineers.</h2>
@@ -716,7 +709,7 @@ export default function GenesisLanding() {
       </main>
 
       {/* INSTITUTIONAL FOOTER */}
-      <footer className="genesis-footer">
+      <footer className="genesis-footer" data-deferred-render="footer">
         <div className="mono-container">
           <div className="footer-top-grid font-satoshi">
             <div className="footer-brand-col">
@@ -757,7 +750,9 @@ export default function GenesisLanding() {
           </div>
 
           <div className="footer-bottom-bar font-satoshi">
-            <span className="footer-copyright">
+            {/* The prerender bakes in the build's year; across a new year the browser's differs,
+                which must not make React discard the whole prerendered page. */}
+            <span className="footer-copyright" suppressHydrationWarning>
               © {new Date().getFullYear()} Team Genesis, VIT Chennai. All rights reserved.
             </span>
             <div className="footer-legal-links">

@@ -5,6 +5,7 @@ import { mechanicalMembers } from '../../data/mechanicalMembers';
 import { electricalMembers } from '../../data/electricalMembers';
 import { softwareMembers } from '../../data/softwareMembers';
 import loadScrollTrigger from './loadScrollTrigger';
+import { SECTIONS_RENDERED_EVENT, revealDeferredThrough } from '../../utils/deferredRender';
 
 // Where CSS scroll-driven animations exist, GenesisLanding.css moves the track ("team-hscroll"
 // keyframes on a view timeline): the compositor applies it in the same frame as the scroll, with
@@ -57,10 +58,18 @@ export default function TeamSection() {
 
     let cancelled = false;
     let mm = null;
-    loadScrollTrigger().then(({ gsap }) => {
+    // Sections above this one may still be rendering (main page: content-visibility, see
+    // utils/deferredRender.js); once they are, the pin's cached start/end must be re-measured.
+    let refresh = null;
+    loadScrollTrigger().then(({ gsap, ScrollTrigger }) => {
       if (cancelled) return;
+      refresh = () => ScrollTrigger.refresh();
+      window.addEventListener(SECTIONS_RENDERED_EVENT, refresh);
       mm = gsap.matchMedia();
       mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
+        // The pin measures this section and the track's width: render it, and everything above
+        // it, first (a deferred section reports an estimated height and no width).
+        revealDeferredThrough(section);
         const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
         gsap.to(track, {
@@ -84,6 +93,7 @@ export default function TeamSection() {
 
     return () => {
       cancelled = true;
+      if (refresh) window.removeEventListener(SECTIONS_RENDERED_EVENT, refresh);
       if (mm) mm.revert();
     };
   }, []);
@@ -113,7 +123,7 @@ export default function TeamSection() {
   const legacyDepartments = [...new Set(legacyMembers.map((m) => m.department))];
 
   return (
-    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef}>
+    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef} data-deferred-render="team">
       <div className="team-hscroll-stage">
 
         {/* ── Horizontal Track (7 Slides × 100vw) ── */}
