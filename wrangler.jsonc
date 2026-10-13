@@ -15,9 +15,16 @@
     "enabled": true
   },
 
-  // Custom domains. Not active yet: teamgenesisvitc.in is registered at Hostinger and must be
-  // added as a zone in this Cloudflare account first (see README "Deploying to Cloudflare").
-  // Uncomment once the zone is active in Cloudflare.
+  // Preview builds (Workers Builds, every branch other than main) run `npx wrangler preview`,
+  // which refuses to run without a "previews" block. Empty: Previews use the top-level settings
+  // above and below (there are no bindings that would need preview-only resources).
+  // https://developers.cloudflare.com/workers/previews/configuration/
+  "previews": {},
+
+  // Custom domains: teamgenesisvitc.in and www.teamgenesisvitc.in are attached to this Worker in
+  // the dashboard (Worker > Settings > Domains & Routes), not here, so deploys need no zone
+  // permissions. To manage them from this file instead (the build token then needs Workers
+  // Routes edit permission on the zone), uncomment:
   // "routes": [
   //   { "pattern": "teamgenesisvitc.in", "custom_domain": true },
   //   { "pattern": "www.teamgenesisvitc.in", "custom_domain": true }

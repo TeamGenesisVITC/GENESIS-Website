@@ -15,6 +15,10 @@ import React, { useLayoutEffect, useRef } from 'react';
  * The card's state classes: .is-visible (shown / entering), .is-leaving (exit transition
  * running), neither (hidden, waiting in the enter pose). Transitions start from the current
  * values, so a transition that is reversed halfway turns around smoothly.
+ *
+ * aria-hidden on inactive cards is set here too rather than in the markup: the prerendered page
+ * must expose every card, because without JavaScript all five are shown (GenesisLanding.css,
+ * "Without JavaScript"), and hydration does not patch attributes that differ from the server's.
  */
 export default function StoryBeat({ visible, align = 'left', id, children, className = '' }) {
   const alignClass = `beat-${align}`;
@@ -23,6 +27,8 @@ export default function StoryBeat({ visible, align = 'left', id, children, class
   useLayoutEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+    if (visible) card.removeAttribute('aria-hidden');
+    else card.setAttribute('aria-hidden', 'true');
     if (visible) {
       if (!card.classList.contains('is-leaving')) {
         // Coming from the hidden enter pose (also on mount): commit that pose first so the
@@ -56,14 +62,12 @@ export default function StoryBeat({ visible, align = 'left', id, children, class
         width: '100%',
         height: '100%',
         display: 'flex',
-        alignItems: 'center',
         zIndex: 20,
       }}
     >
       <div
         ref={cardRef}
         className={`beat-editorial-container ${className}`}
-        aria-hidden={visible ? undefined : true}
         onTransitionEnd={handleTransitionEnd}
       >
         {children}

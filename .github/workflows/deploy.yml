@@ -1,9 +1,12 @@
 name: Deploy Genesis Website
 
+# RETIRED (manual only). The site is served by Cloudflare Workers (wrangler.jsonc; Workers Builds
+# deploys every push to main). This old GitHub Pages workflow uploads ./build, the Create React
+# App output that was committed before the move to Vite (`npm run build` now writes dist/), so
+# since that move each run republished a frozen copy of the old site while reporting success.
+# Do not run it: it would publish that stale copy again. Kept for history; the Pages site can be
+# turned off under Settings > Pages.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:

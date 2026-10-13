@@ -124,9 +124,21 @@ In `npm run dev` there are no per-route HTML files yet, so every page path is an
 
 ## Deploying to Cloudflare
 
-The site is a Cloudflare Worker named `genesis-website` with static assets.
+The site is a Cloudflare Worker named `genesis-website` with static assets, served at
+`https://www.teamgenesisvitc.in` and `https://teamgenesisvitc.in`.
 
-### GitHub Actions (recommended)
+### Workers Builds (how it deploys)
+
+The repository is connected to the Worker (**Workers & Pages > genesis-website > Settings >
+Build**). Every push runs `npm run build`, then:
+
+- on `main`: `npx wrangler deploy`, i.e. production;
+- on any other branch: `npx wrangler preview`, which creates a
+  [Preview](https://developers.cloudflare.com/workers/previews/) with its own URL and reports it
+  on the pull request as the **Workers Builds: genesis-website** check. This command needs the
+  `previews` block in `wrangler.jsonc` (it may stay empty).
+
+### GitHub Actions (manual fallback)
 
 `.github/workflows/deploy-cloudflare.yml` builds the site and runs `wrangler deploy`. It only
 runs when started by hand: **Actions > Deploy to Cloudflare Workers > Run workflow**.
@@ -153,8 +165,8 @@ To check the production build locally in the Cloudflare runtime first: `npm run 
 
 ### Moving teamgenesisvitc.in to Cloudflare
 
-The domain is registered at Hostinger and the site is currently on Vercel. To serve it from the
-Worker:
+Done on 2026-10-12 (steps 1 to 4): the zone is active in Cloudflare and both hostnames are
+custom domains of the Worker. Steps 5 to 7 are still open. The steps, for reference:
 
 1. **Add the zone.** In the Cloudflare dashboard, **Add a domain** > `teamgenesisvitc.in`
    (Free plan is fine). Cloudflare scans the existing DNS records.
@@ -178,9 +190,15 @@ Worker:
    so also make the apex redirect to `www` instead of serving a duplicate copy, e.g. a
    **Rules > Redirect Rule** with wildcard pattern `https://teamgenesisvitc.in/*` and target
    `https://www.teamgenesisvitc.in/${1}` (301, preserve query string).
-6. **Retire the old hosting.** Remove the domain from the Vercel project and delete or pause
-   that project, and remove `.github/workflows/deploy.yml` (the old GitHub Pages workflow) and
-   the committed `build/` directory, which are no longer used.
+6. **Retire the old hosting.** Each of these still builds or serves the site and posts its own
+   check on every pull request:
+   - the Vercel project `team-genesis/genesis-website`: remove the domain, then disconnect the
+     Git repository or delete the project;
+   - the Worker `teamgenesis` in a second Cloudflare account, also connected to this
+     repository (its production builds fail): disconnect it under **Settings > Build**, or
+     delete it;
+   - GitHub Pages: `.github/workflows/deploy.yml` is manual-only now; turn Pages off under
+     **Settings > Pages**. The committed `build/` directory is no longer used.
 7. Optionally enable HSTS (**SSL/TLS > Edge Certificates**) once everything works over HTTPS,
    and resubmit `https://www.teamgenesisvitc.in/sitemap.xml` in Search Console.
 

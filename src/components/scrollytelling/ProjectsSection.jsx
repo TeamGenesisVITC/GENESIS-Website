@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { m, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 const PROJECTS = [
   {
@@ -86,11 +86,22 @@ const PROJECTS = [
 
 export default function ProjectsSection() {
   const [activeProject, setActiveProject] = useState(PROJECTS[0].id);
+  const reduceMotion = useReducedMotion();
+
+  // With the cards in one column (<= 1024px) the details panel is below all of them, often
+  // more than a screen away from the button: bring it into view after choosing a project.
+  const revealDetails = () => {
+    if (typeof window === 'undefined' || !window.matchMedia('(max-width: 1024px)').matches) return;
+    requestAnimationFrame(() => {
+      const panel = document.getElementById('project-deep-panel');
+      if (panel) panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    });
+  };
 
   const selectedProj = PROJECTS.find((p) => p.id === activeProject) || PROJECTS[0];
 
   return (
-    <section id="projects-pipeline" className="projects-light-section">
+    <section id="projects-pipeline" tabIndex={-1} className="projects-light-section" data-deferred-render="projects">
       <div className="projects-light-container">
         
         {/* ── Section Eyebrow & Headline ── */}
@@ -168,6 +179,7 @@ export default function ProjectsSection() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveProject(proj.id);
+                    revealDetails();
                   }}
                 >
                   {isSelected ? 'INSPECTING DETAILS ▾' : 'EXPLORE ARCHITECTURE →'}
@@ -178,7 +190,7 @@ export default function ProjectsSection() {
         </div>
 
         {/* ── Deep-Dive Interactive Specification Panel ── */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           <m.div
             key={selectedProj.id}
             id="project-deep-panel"

@@ -14,30 +14,23 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="https://www.teamgenesisvitc.in/" />
 
+    <!-- "js" on <html> before the first paint: the prerendered landing page shows a static
+      layout of its scroll-driven sections when JavaScript is off (GenesisLanding.css). -->
+    <script>document.documentElement.classList.add('js')</script>
+
     <!--
-      Fonts. Preconnect to the stylesheet hosts without crossorigin (stylesheets are no-cors
-      requests) and to the font-file hosts with crossorigin (font files are always CORS),
-      otherwise the browser opens a second connection and the preconnect is wasted.
+      Fonts: the @font-face rules live in src/styles/fonts.css (no render-blocking font
+      stylesheets). The font files come from these two hosts; preconnect with crossorigin, as
+      font requests are always CORS.
     -->
-    <link rel="preconnect" href="https://api.fontshare.com" />
     <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!--
-      Cabinet Grotesk 900: the large preloader counter and hero headline on "/" (the LCP text).
-      URL copied from the Fontshare Cabinet Grotesk stylesheet below; update it if Fontshare
-      changes it. data-home-only: removed from every other route's HTML at build time.
+      Cabinet Grotesk 900: the hero headline on "/" (the largest text on the first screen).
+      Same URL as its @font-face rule in src/styles/fonts.css; keep the two in sync.
+      data-home-only: removed from every other route's HTML at build time.
     -->
     <link rel="preload" href="https://cdn.fontshare.com/wf/54BYDK52GK4J6SPDN2E656FIZHUETKL3/ACYE4XDNEUAHIOQEOGPYPDVAVDI5P67Q/TZVUWRP4UW5PEJWBLXHG5VVGPODI2WLC.woff2" as="font" type="font/woff2" crossorigin data-home-only />
-    <!--
-      Fontshare: Cabinet Grotesk and Satoshi, one stylesheet per family. The combined
-      ?f[]=cabinet-grotesk@...&f[]=satoshi@...&display=swap URL is served from Fontshare's CDN
-      cache with only the first family, so Satoshi never loaded.
-    -->
-    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800,900&display=swap" />
-    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" />
-    <!-- Google Fonts: JetBrains Mono -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />

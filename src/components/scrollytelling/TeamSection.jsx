@@ -5,6 +5,7 @@ import { mechanicalMembers } from '../../data/mechanicalMembers';
 import { electricalMembers } from '../../data/electricalMembers';
 import { softwareMembers } from '../../data/softwareMembers';
 import loadScrollTrigger from './loadScrollTrigger';
+import { SECTIONS_RENDERED_EVENT, revealDeferredThrough } from '../../utils/deferredRender';
 
 // Where CSS scroll-driven animations exist, GenesisLanding.css moves the track ("team-hscroll"
 // keyframes on a view timeline): the compositor applies it in the same frame as the scroll, with
@@ -13,10 +14,29 @@ import loadScrollTrigger from './loadScrollTrigger';
 const CSS_SCROLL_TIMELINE =
   typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: view()');
 
+// The roster's idle hint, worded for the visitor's input: "hover" with a mouse, "tap" on touch
+// screens (GenesisLanding.css switches them with the hover media feature).
+function IdleHint({ hover, touch }) {
+  return (
+    <>
+      <span className="idle-hint--hover">{hover}</span>
+      <span className="idle-hint--touch">{touch}</span>
+    </>
+  );
+}
+
 export default function TeamSection() {
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
-  const [hoveredMember, setHoveredMember] = useState(null);
+  // The engineer whose motto is shown, and in which roster: each roster's callout (and its
+  // aria-live region) reacts only to its own engineers. On phones all four rosters are on
+  // the page at once, and a shared selection showed one motto in all four callouts.
+  const [selected, setSelected] = useState(null);
+  const select = (roster, member) => setSelected(member ? { roster, member } : null);
+  const mottoIn = (roster) => {
+    const member = selected && selected.roster === roster ? selected.member : null;
+    return member && member.quote && member.quote.trim() ? member : null;
+  };
 
   // The CSS sizes the scroll distance (and the track's travel) from the slide count.
   useLayoutEffect(() => {
@@ -38,10 +58,18 @@ export default function TeamSection() {
 
     let cancelled = false;
     let mm = null;
-    loadScrollTrigger().then(({ gsap }) => {
+    // Sections above this one may still be rendering (main page: content-visibility, see
+    // utils/deferredRender.js); once they are, the pin's cached start/end must be re-measured.
+    let refresh = null;
+    loadScrollTrigger().then(({ gsap, ScrollTrigger }) => {
       if (cancelled) return;
+      refresh = () => ScrollTrigger.refresh();
+      window.addEventListener(SECTIONS_RENDERED_EVENT, refresh);
       mm = gsap.matchMedia();
       mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
+        // The pin measures this section and the track's width: render it, and everything above
+        // it, first (a deferred section reports an estimated height and no width).
+        revealDeferredThrough(section);
         const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
         gsap.to(track, {
@@ -65,6 +93,7 @@ export default function TeamSection() {
 
     return () => {
       cancelled = true;
+      if (refresh) window.removeEventListener(SECTIONS_RENDERED_EVENT, refresh);
       if (mm) mm.revert();
     };
   }, []);
@@ -94,7 +123,7 @@ export default function TeamSection() {
   const legacyDepartments = [...new Set(legacyMembers.map((m) => m.department))];
 
   return (
-    <div id="team-section" className="team-hscroll-wrapper" ref={sectionRef}>
+    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef} data-deferred-render="team">
       <div className="team-hscroll-stage">
 
         {/* ── Horizontal Track (7 Slides × 100vw) ── */}
@@ -294,26 +323,30 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {mechanicalMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
+                        onMouseEnter={() => select('mech', member)}
+                        onMouseLeave={() => select('mech', null)}
+                        onFocus={() => select('mech', member)}
+                        onBlur={() => select('mech', null)}
+                        onClick={() => select('mech', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
+                    {mottoIn('mech') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('mech').name}:</strong> "{mottoIn('mech').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -379,26 +412,30 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {electricalMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
+                        onMouseEnter={() => select('elec', member)}
+                        onMouseLeave={() => select('elec', null)}
+                        onFocus={() => select('elec', member)}
+                        onBlur={() => select('elec', null)}
+                        onClick={() => select('elec', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
+                    {mottoIn('elec') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('elec').name}:</strong> "{mottoIn('elec').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -464,26 +501,30 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {softwareMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
-                        onMouseEnter={() => setHoveredMember(member)}
-                        onMouseLeave={() => setHoveredMember(null)}
+                        onMouseEnter={() => select('soft', member)}
+                        onMouseLeave={() => select('soft', null)}
+                        onFocus={() => select('soft', member)}
+                        onBlur={() => select('soft', null)}
+                        onClick={() => select('soft', member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
-                    {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
+                    {mottoIn('soft') ? (
                       <div className="live-quote">
-                        <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                        <strong className="font-mono">{mottoIn('soft').name}:</strong> "{mottoIn('soft').quote.trim()}"
                       </div>
                     ) : (
                       <span className="idle-quote font-mono">
-                        HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION &amp; MOTTO
+                        <IdleHint hover="HOVER OVER AN ENGINEER TO INSPECT SPECIALIZATION & MOTTO" touch="TAP AN ENGINEER TO READ THEIR SPECIALIZATION & MOTTO" />
                       </span>
                     )}
                   </div>
@@ -559,29 +600,33 @@ export default function TeamSection() {
                     </div>
                     <div className="roster-chips-grid">
                       {legacyMembers.filter((m) => m.department === dept).map((member) => (
-                        <div
+                        <button
+                          type="button"
                           key={member.id}
                           className="engineer-chip engineer-chip--legacy"
-                          onMouseEnter={() => setHoveredMember(member)}
-                          onMouseLeave={() => setHoveredMember(null)}
+                          onMouseEnter={() => select('legacy', member)}
+                          onMouseLeave={() => select('legacy', null)}
+                          onFocus={() => select('legacy', member)}
+                          onBlur={() => select('legacy', null)}
+                          onClick={() => select('legacy', member)}
                         >
                           <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                           <span className="chip-name font-satoshi">{member.name}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="roster-quote-callout font-satoshi">
-                {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
+              <div className="roster-quote-callout font-satoshi" aria-live="polite">
+                {mottoIn('legacy') ? (
                   <div className="live-quote">
-                    <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
+                    <strong className="font-mono">{mottoIn('legacy').name}:</strong> "{mottoIn('legacy').quote.trim()}"
                   </div>
                 ) : (
                   <span className="idle-quote font-mono">
-                    HOVER OVER A NAME TO READ THEIR MOTTO
+                    <IdleHint hover="HOVER OVER A NAME TO READ THEIR MOTTO" touch="TAP A NAME TO READ THEIR MOTTO" />
                   </span>
                 )}
               </div>

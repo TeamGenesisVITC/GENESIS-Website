@@ -5,6 +5,7 @@ import GenesisLanding from './components/scrollytelling/GenesisLanding';
 import { RouteFallback, RouteErrorBoundary } from './components/RouteStatus';
 import { loadTeamRoutes, loadNotFound } from './pages/routeLoaders';
 import { usePageMeta } from './utils/pageMeta';
+import './styles/fonts.css';
 import './App.css';
 
 // The landing page stays in the main bundle (it is the first paint for most visitors).
@@ -106,21 +107,29 @@ function AppRoutes() {
   );
 }
 
+/** Everything inside the router: shared by the browser (App) and the build-time prerender
+ *  (src/entry-server.jsx, which wraps it in a StaticRouter instead). */
+export function AppContent() {
+  return (
+    /* LazyMotion + the `m` components load only framer-motion's DOM animation
+       features (no drag/pan/layout projection), which keeps the main bundle smaller.
+       `strict` makes an accidental full `motion.*` component fail loudly in dev. */
+    <LazyMotion features={domAnimation} strict>
+      {/* Honors the OS "reduce motion" setting for every framer-motion animation. */}
+      <MotionConfig reducedMotion="user">
+        <PageMeta />
+        <ScrollManager />
+        <SkipLink />
+        <AppRoutes />
+      </MotionConfig>
+    </LazyMotion>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      {/* LazyMotion + the `m` components load only framer-motion's DOM animation
-          features (no drag/pan/layout projection), which keeps the main bundle smaller.
-          `strict` makes an accidental full `motion.*` component fail loudly in dev. */}
-      <LazyMotion features={domAnimation} strict>
-        {/* Honors the OS "reduce motion" setting for every framer-motion animation. */}
-        <MotionConfig reducedMotion="user">
-          <PageMeta />
-          <ScrollManager />
-          <SkipLink />
-          <AppRoutes />
-        </MotionConfig>
-      </LazyMotion>
+      <AppContent />
     </BrowserRouter>
   );
 }

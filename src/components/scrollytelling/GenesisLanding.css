@@ -2818,3 +2818,564 @@ html.lenis, html.lenis body {
 @media (max-width: 768px) {
   .hero-robot-wrap { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PORTRAIT SEQUENCE (phones, upright tablets)
+   The frame fills the band across the top of the screen (ScrollCanvas frameLayout:
+   PORTRAIT_STAGE_BOTTOM = 58% of the height, the same "max-width 900px, portrait" condition) and
+   the story card sits below it, anchored to the bottom edge, so the robot and the text are both
+   visible instead of the card covering most of the frame. The card overlaps the frame's bottom
+   feather, which already fades it to the section's #050505.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) and (orientation: portrait) {
+  .story-beat,
+  .beat-left,
+  .beat-right {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .beat-editorial-container {
+    max-width: 560px;
+    padding: 18px 18px 16px;
+    border-radius: 14px;
+    background: rgba(8, 8, 10, 0.86);
+    box-shadow: 0 -12px 40px -16px rgba(0, 0, 0, 0.8);
+  }
+  /* Beat number and topic on two lines rather than a wrap that strands the divider dot. */
+  .editorial-eyebrow-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    margin-bottom: 8px;
+  }
+  .editorial-eyebrow-row .mono-divider {
+    display: none;
+  }
+  .editorial-section-title {
+    font-size: 21px;
+    margin-bottom: 8px;
+  }
+  .editorial-body-text {
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin-bottom: 12px;
+  }
+  .editorial-specs-matrix {
+    gap: 8px;
+    padding-top: 12px;
+  }
+  .spec-text {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .flagship-exit-hint {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HERO ON PHONES (<= 768px)
+   The desktop robot (.hero-robot-wrap) sits beside the copy and is hidden here; the inline
+   robot (.hero-robot-inline) takes its place in the flow, under the headline: rotated like the
+   desktop one, wider than the screen and bleeding off the right edge, so it reads as falling
+   across the page rather than as a boxed picture. The empty block that reserves room beside
+   the desktop robot goes, and the eyebrow breaks before the place name instead of mid-phrase.
+   ═══════════════════════════════════════════════════════════ */
+.hero-robot-inline {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hero-masthead {
+    padding-top: 104px;
+    padding-bottom: 72px;
+  }
+  .hero-eyebrow {
+    margin-bottom: 20px;
+    line-height: 1.7;
+  }
+  .hero-eyebrow-sep {
+    display: none;
+  }
+  .hero-eyebrow-place {
+    display: block;
+  }
+  .hero-masthead .mb-8 {
+    margin-bottom: 0;
+  }
+  .hero-robot-inline {
+    display: block;
+    position: relative;
+    /* 20px container gutter on the left, ~22vw past the right edge (clipped by the hero). */
+    width: calc(100% + 20px + 22vw);
+    margin: -6px 0 10px -6px;
+    aspect-ratio: 960 / 536;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .hero-robot-inline > picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .hero-robot-inline-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform-origin: 40% 50%;
+    transform: rotate(-10deg);
+  }
+  .hero-robot-spacer {
+    display: none;
+  }
+  /* Actions before the three detail points, so the primary button is on the first screen. */
+  .hero-masthead > .mono-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .hero-masthead .hero-action-row {
+    order: 1;
+    gap: 14px 22px;
+    margin-bottom: 36px;
+  }
+  .hero-masthead .hero-points-wrap {
+    order: 2;
+  }
+  .hero-masthead .hero-robot-spacer {
+    order: 3;
+  }
+}
+
+/* Roster hints (TeamSection IdleHint): "tap" wording on touch screens, "hover" with a mouse. */
+.idle-hint--touch {
+  display: none;
+}
+@media (hover: none) {
+  .idle-hint--hover {
+    display: none;
+  }
+  .idle-hint--touch {
+    display: inline;
+  }
+}
+
+/* Lite mode (<html class="is-lite">, utils/deviceProfile.js): no decorative GPU work. An opaque
+   header instead of blurring the page behind it on every scroll frame, and story cards that
+   cross-fade without animating a blur. */
+.is-lite .genesis-header,
+.is-lite .genesis-header--scrolled {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(10, 10, 16, 0.97);
+}
+.is-lite .beat-editorial-container,
+.is-lite .beat-editorial-container.is-leaving {
+  filter: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHONE MENU (Navbar MobileMenu, <= 900px where the inline links are hidden)
+   ═══════════════════════════════════════════════════════════ */
+.nav-menu-toggle,
+.nav-mobile-menu {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .header-actions {
+    gap: 6px;
+  }
+  .nav-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-right: -10px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    color: #FFFFFF;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-menu-toggle:focus-visible {
+    outline: 2px solid #C084FC;
+    outline-offset: -4px;
+  }
+  /* Two bars that turn into a cross when the menu is open. */
+  .nav-menu-icon {
+    position: relative;
+    width: 18px;
+    height: 10px;
+  }
+  .nav-menu-icon::before,
+  .nav-menu-icon::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .nav-menu-icon::before {
+    top: 0;
+  }
+  .nav-menu-icon::after {
+    bottom: 0;
+  }
+  .nav-menu-toggle[aria-expanded="true"] .nav-menu-icon::before {
+    transform: translateY(4px) rotate(45deg);
+  }
+  .nav-menu-toggle[aria-expanded="true"] .nav-menu-icon::after {
+    transform: translateY(-4px) rotate(-45deg);
+  }
+
+  .nav-mobile-menu {
+    display: block;
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    /* Short landscape phones: the six rows scroll instead of running off the screen. */
+    max-height: calc(100dvh - 64px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: #0A0A10;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.28);
+    box-shadow: 0 28px 48px -12px rgba(0, 0, 0, 0.6);
+    animation: nav-menu-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .nav-mobile-menu a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 52px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: #FFFFFF;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-mobile-menu a:last-child {
+    border-bottom: 0;
+  }
+  .nav-mobile-menu a:focus-visible {
+    outline: 2px solid #C084FC;
+    outline-offset: 2px;
+  }
+  .nav-mobile-label {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .nav-mobile-index {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: rgba(192, 132, 252, 0.75);
+  }
+}
+
+/* Room for the menu button: the header CTA shortens to "Partner" on narrow phones. */
+@media (max-width: 420px) {
+  .cta-tail {
+    display: none;
+  }
+}
+
+@keyframes nav-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-mobile-menu {
+    animation: none;
+  }
+}
+
+/* Contact rows on their own lines (they ran together as "...@gmail.comVIT Chennai..."). */
+.dossier-direct-contact > * {
+  display: block;
+}
+
+/* The details panel lands below the fixed header when it is scrolled into view. */
+.project-deep-panel {
+  scroll-margin-top: 80px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PROJECTS ON PHONES (<= 768px)
+   Desktop gutters (40px section + 40px panel) left ~230px for the dossier on a 390px phone:
+   the status pill ran off the screen and spec labels collided with their values.
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .projects-light-section {
+    padding: 72px 0 64px;
+  }
+  .projects-light-container {
+    padding: 0 20px;
+  }
+  .pcard-top {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pcard-action-btn {
+    min-height: 44px;
+  }
+  .project-deep-panel {
+    padding: 22px 18px;
+  }
+  .deep-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .deep-panel-title {
+    font-size: 1.35rem;
+    line-height: 1.15;
+  }
+  .deep-panel-status-pill {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .spec-row {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  /* 44px touch targets for text-only controls (visual size unchanged). */
+  .hero-btn-secondary {
+    min-height: 44px;
+  }
+  .footer-nav-col a,
+  .footer-nav-col button {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .legal-link-btn {
+    min-height: 40px;
+  }
+}
+
+/* Stacked team slides (phones, reduced motion): the rosters flow with the page. Their 200-260px
+   inner scroll boxes only made sense inside the pinned full-height slides; on a phone they
+   caught the swipe meant for the page and cut names off with an ellipsis. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .roster-chips-grid,
+  .legacy-members-groups .roster-chips-grid {
+    max-height: none;
+    overflow: visible;
+  }
+  .chip-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+/* Short portrait screens (<= 740px tall: SE-class and older Android phones): with the full card
+   the robot was down to a ~100px strip. The card keeps its heading and story and drops the
+   secondary spec bullets, so the frame keeps about the top half of the screen. */
+@media (max-width: 900px) and (orientation: portrait) and (max-height: 740px) {
+  .beat-editorial-container {
+    padding: 14px 16px 12px;
+  }
+  .editorial-section-title {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+  .editorial-body-text {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 0;
+  }
+  .editorial-specs-matrix {
+    display: none;
+  }
+  .flagship-exit-hint {
+    margin-top: 10px;
+  }
+}
+
+/* Roster chips are buttons (TeamSection): keep the former <div> chip look. */
+button.engineer-chip {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.engineer-chip:focus-visible {
+  outline: 2px solid #C084FC;
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HERO ENTRANCE (GenesisLanding .hero-intro)
+   The same offsets, durations, delays and easing as the framer-motion initial/animate props
+   they replace. As CSS they run from the first paint of the prerendered page instead of after
+   the JavaScript has downloaded and hydrated it. Each element starts transparent and/or offset
+   and settles into its own styles (the keyframes have no "to").
+   ═══════════════════════════════════════════════════════════ */
+.hero-intro {
+  animation-name: hero-intro;
+  animation-duration: var(--intro-duration, 0.5s);
+  animation-delay: var(--intro-delay, 0s);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+@keyframes hero-intro {
+  from {
+    opacity: var(--intro-opacity, 0);
+    transform: translate(var(--intro-x, 0px), var(--intro-y, 0px));
+  }
+}
+
+.hero-intro--eyebrow {
+  --intro-duration: 0.4s;
+  --intro-y: 8px;
+}
+.hero-intro--headline {
+  --intro-duration: 0.6s;
+  --intro-delay: 0.08s;
+  --intro-y: 20px;
+}
+.hero-intro--points {
+  --intro-duration: 0.5s;
+  --intro-delay: 0.18s;
+  --intro-y: 16px;
+}
+.hero-intro--actions {
+  --intro-duration: 0.45s;
+  --intro-delay: 0.28s;
+  --intro-y: 14px;
+}
+.hero-intro--robot {
+  --intro-duration: 0.9s;
+  --intro-delay: 0.15s;
+  --intro-x: 60px;
+}
+/* The phone robot slides without fading: it is the first screen's largest element. */
+.hero-intro--robot-inline {
+  --intro-duration: 0.8s;
+  --intro-x: 40px;
+  --intro-opacity: 1;
+}
+
+/* Like framer-motion's reducedMotion="user": no movement, the fades still run. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-intro {
+    --intro-x: 0px;
+    --intro-y: 0px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DEFERRED SECTIONS ([data-deferred-render], main.jsx renderDeferredSections)
+   The prerendered page lays out ~20,000px of content before its first paint: ~0.7 s of layout
+   on a mid-range phone. Sections below the first screen start with content-visibility: auto,
+   so only the hero is laid out for the first paint; main.jsx then renders them for real, one
+   per idle moment, so scrolling into a section never has to lay it out. Until then each one
+   reserves its measured height (contain-intrinsic-size; "auto" keeps the real height once it
+   has been rendered). The canvas sequence and the desktop team carousel have fixed heights.
+   ═══════════════════════════════════════════════════════════ */
+[data-deferred-render] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1000px;
+}
+[data-deferred-render="origins"] { contain-intrinsic-size: auto 811px; }
+[data-deferred-render="vision"] { contain-intrinsic-size: auto 1091px; }
+[data-deferred-render="projects"] { contain-intrinsic-size: auto 1373px; }
+[data-deferred-render="invest"] { contain-intrinsic-size: auto 1222px; }
+[data-deferred-render="footer"] { contain-intrinsic-size: auto 412px; }
+
+@media (max-width: 1024px) {
+  [data-deferred-render="origins"] { contain-intrinsic-size: auto 860px; }
+  [data-deferred-render="vision"] { contain-intrinsic-size: auto 1200px; }
+  [data-deferred-render="projects"] { contain-intrinsic-size: auto 2360px; }
+  [data-deferred-render="invest"] { contain-intrinsic-size: auto 1540px; }
+  [data-deferred-render="footer"] { contain-intrinsic-size: auto 610px; }
+}
+
+@media (max-width: 768px) {
+  [data-deferred-render="origins"] { contain-intrinsic-size: auto 1110px; }
+  [data-deferred-render="vision"] { contain-intrinsic-size: auto 1600px; }
+  [data-deferred-render="projects"] { contain-intrinsic-size: auto 2830px; }
+  [data-deferred-render="invest"] { contain-intrinsic-size: auto 1930px; }
+  [data-deferred-render="footer"] { contain-intrinsic-size: auto 1140px; }
+}
+
+/* Stacked team slides (phones, reduced motion) have no fixed height. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  [data-deferred-render="team"] { contain-intrinsic-size: auto 7460px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WITHOUT JAVASCRIPT (<html> lacks the "js" class that index.html sets before the first paint)
+   The prerendered landing page is complete without its scripts except for what they drive:
+   the pinned canvas sequence becomes a static column (one still of the robot, then the five
+   story cards in order), and the phone menu button, which needs JavaScript, is hidden.
+   Sections are not deferred either: nothing would render them later, and content left
+   unrendered off-screen is missing from the accessibility tree.
+   ═══════════════════════════════════════════════════════════ */
+.flagship-still {
+  display: block;
+  width: min(960px, calc(100% - 32px));
+  height: auto;
+  margin: 0 auto 40px;
+  border-radius: 12px;
+}
+
+html:not(.js) [data-deferred-render] {
+  content-visibility: visible;
+}
+html:not(.js) .canvas-section {
+  height: auto;
+}
+html:not(.js) .canvas-sticky {
+  position: relative;
+  display: block;
+  height: auto;
+  overflow: visible;
+  contain: none;
+  will-change: auto;
+  padding: 96px 0 72px;
+}
+html:not(.js) .canvas-sticky canvas {
+  display: none !important;
+}
+html:not(.js) .story-beat {
+  position: relative !important;
+  height: auto !important;
+  justify-content: center !important;
+  margin-bottom: 24px;
+}
+html:not(.js) .beat-editorial-container,
+html:not(.js) .beat-editorial-container .beat-item {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  visibility: visible;
+}
+html:not(.js) .nav-menu-toggle {
+  display: none;
+}
