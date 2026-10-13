@@ -37,6 +37,10 @@
 /frame-atlases/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Beat stills for lite mode (scripts/generate-stills.mjs): content-hashed names as well.
+/frame-stills/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # The generator's manifest keeps a fixed name, so it must not inherit the immutable rule.
 /frame-atlases/manifest.json
   ! Cache-Control
