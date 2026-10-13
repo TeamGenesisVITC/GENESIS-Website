@@ -44,8 +44,13 @@ const LOW_MEMORY =
     (typeof window !== 'undefined' && window.innerWidth < 768));
 const RESIDENT_AHEAD = LOW_MEMORY ? 1 : 2;
 const RESIDENT_BEHIND = 1;
-// Atlases beyond the initial view are fetched and decoded only once the sequence is this close.
-const NEAR_MARGIN = '150% 0px';
+// Atlases beyond the initial view are fetched and decoded only once the sequence is this close:
+// 1.5 viewport heights above or below. In pixels, because IntersectionObserver resolves a
+// percentage root margin against the viewport width, which would disagree with isNearViewport.
+const NEAR_VIEWPORTS = 1.5;
+function nearMargin() {
+  return `${Math.round(window.innerHeight * NEAR_VIEWPORTS)}px 0px`;
+}
 // Reduced motion: one still frame per story beat (same thresholds as GenesisLanding's beats),
 // no scrubbing and no camera glide.
 const BEAT_THRESHOLDS = [0.21, 0.45, 0.69, 0.87];
@@ -63,18 +68,33 @@ const STILLS = stillsManifest.stills;
 const STILLS_BASE_PATH = stillsManifest.basePath || '/frame-stills/';
 const STILL_FRAMES = STILLS.map((still) => still.frame);
 
+// A still that has not decoded after this long is given up (and the next format tried), so a
+// stalled request can neither block the WebP fallback nor leave the sequence waiting forever.
+const STILL_TIMEOUT_MS = 8000;
+const STILL_RETRIES = 3;
+const STILL_RETRY_MS = 3000;
+
 // Loads one still, preferring AVIF and falling back to WebP where AVIF does not decode.
-async function loadStillImage(still) {
+// `isCancelled` stops the attempt early (unmount); abandoned requests are released.
+async function loadStillImage(still, isCancelled) {
   for (const format of ['avif', 'webp']) {
-    if (!still[format]) continue;
+    if (!still[format] || isCancelled()) continue;
     const img = new Image();
     img.decoding = 'async';
     img.src = STILLS_BASE_PATH + still[format].file;
+    let timer = null;
     try {
-      await img.decode();
+      await Promise.race([
+        img.decode(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timed out')), STILL_TIMEOUT_MS);
+        }),
+      ]);
       return img;
     } catch {
-      // Unsupported format or a failed request: try the next format.
+      img.src = ''; // unsupported, failed or stalled: drop the request, try the next format
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw new Error(`could not load the still for frame ${still.frame}`);
@@ -295,8 +315,9 @@ const PORTRAIT_STAGE_BOTTOM = 0.58; // fraction of the viewport height
 // How far the bottom feather reaches up into the portrait stage (fraction of the frame height).
 const PORTRAIT_BOTTOM_FADE = 0.42;
 
+// Same condition as the CSS "(max-width: 900px) and (orientation: portrait)" (portrait: h >= w).
 function isPortraitLayout(w, h) {
-  return w <= 900 && h > w;
+  return w <= 900 && h >= w;
 }
 
 // Where a frame is drawn, in CSS pixels, before the horizontal camera offset.
@@ -328,11 +349,12 @@ function frameLayout(w, h) {
   };
 }
 
-// Whether an element is within NEAR_MARGIN (1.5 viewport heights) of the viewport right now.
+// Whether an element is within NEAR_VIEWPORTS viewport heights of the viewport right now
+// (the same distance as the near observers' nearMargin()).
 function isNearViewport(el) {
   if (!el) return true;
   const rect = el.getBoundingClientRect();
-  const margin = window.innerHeight * 1.5;
+  const margin = window.innerHeight * NEAR_VIEWPORTS;
   return rect.top < window.innerHeight + margin && rect.bottom > -margin;
 }
 
@@ -540,7 +562,7 @@ export default function ScrollCanvas({
   // ── Atlas streaming ─────────────────────────────────────────────────────────────────────
   // 1. The atlas holding the initial view (plus a short lead-in) is fetched and decoded first;
   //    the site is reported ready when it is drawable (or after READY_TIMEOUT_MS regardless).
-  // 2. Everything else waits until the sequence is near the viewport (NEAR_MARGIN). Then the
+  // 2. Everything else waits until the sequence is near the viewport (nearMargin()). Then the
   //    compressed atlases download in priority order around the scroll position and direction,
   //    and only the residency window around the current position is decoded. Atlases that leave
   //    the window are released (their compressed file is kept for a quick re-decode).
@@ -843,7 +865,7 @@ export default function ScrollCanvas({
       nearObserver = new IntersectionObserver(([entry]) => {
         near = entry.isIntersecting;
         pump();
-      }, { rootMargin: NEAR_MARGIN });
+      }, { rootMargin: nearMargin() });
       nearObserver.observe(section);
     } else {
       near = true;
@@ -895,14 +917,18 @@ export default function ScrollCanvas({
 
   // ── Lite mode: beat stills ──────────────────────────────────────────────────────────────
   // The still for the initial view loads at once and reports the site ready (a failure does
-  // too: a missing still must never hold the page); the other four wait until the sequence is
-  // near the viewport. A still that fails is retried the next time the sequence comes near.
+  // too, and READY_TIMEOUT_MS at the latest: a missing still must never hold the page); the
+  // other four wait until the sequence is near the viewport. A still that fails is retried a
+  // few times, when the connection comes back, and whenever the sequence comes near again.
   useEffect(() => {
     if (!LITE) return undefined;
     let cancelled = false;
     let readySignalled = false;
     const frames = framesRef.current;
     const loading = new Set();
+    const attempts = new Uint8Array(STILLS.length);
+    const timers = new Set();
+    const isCancelled = () => cancelled;
 
     const signalReady = () => {
       if (readySignalled || cancelled) return;
@@ -916,10 +942,10 @@ export default function ScrollCanvas({
     };
 
     const load = async (n) => {
-      if (loading.has(n) || frames[STILL_FRAMES[n]]) return;
+      if (cancelled || loading.has(n) || frames[STILL_FRAMES[n]]) return;
       loading.add(n);
       try {
-        const image = await loadStillImage(STILLS[n]);
+        const image = await loadStillImage(STILLS[n], isCancelled);
         if (cancelled) return;
         frames[STILL_FRAMES[n]] = { image, sx: 0, sy: 0 };
         if (STATS) STATS.loaded = frames.filter(Boolean).length;
@@ -928,11 +954,29 @@ export default function ScrollCanvas({
           requestRenderRef.current();
         }
       } catch (error) {
-        if (!cancelled) console.warn('[ScrollCanvas]', error.message);
+        if (cancelled) return;
+        attempts[n]++;
+        if (attempts[n] < STILL_RETRIES) {
+          const id = setTimeout(() => {
+            timers.delete(id);
+            load(n);
+          }, STILL_RETRY_MS * attempts[n]);
+          timers.add(id);
+        } else {
+          console.warn('[ScrollCanvas]', error.message);
+        }
       } finally {
         loading.delete(n);
       }
     };
+
+    // Back online: retry whatever is still missing, with a fresh retry budget.
+    const handleOnline = () => {
+      attempts.fill(0);
+      STILLS.forEach((_, n) => load(n));
+    };
+    window.addEventListener('online', handleOnline);
+    const readyTimer = setTimeout(signalReady, READY_TIMEOUT_MS);
 
     const initialProgress = readInitialProgress(containerSelector, targetProgressRef);
     const initial = BEAT_STILLS.indexOf(reducedMotionStill(initialProgress));
@@ -942,8 +986,10 @@ export default function ScrollCanvas({
     let nearObserver = null;
     if (section && typeof IntersectionObserver === 'function') {
       nearObserver = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting) STILLS.forEach((_, n) => load(n));
-      }, { rootMargin: NEAR_MARGIN });
+        if (!entry.isIntersecting) return;
+        attempts.fill(0);
+        STILLS.forEach((_, n) => load(n));
+      }, { rootMargin: nearMargin() });
       nearObserver.observe(section);
     } else {
       STILLS.forEach((_, n) => load(n));
@@ -951,6 +997,10 @@ export default function ScrollCanvas({
 
     return () => {
       cancelled = true;
+      window.removeEventListener('online', handleOnline);
+      clearTimeout(readyTimer);
+      timers.forEach((id) => clearTimeout(id));
+      timers.clear();
       if (nearObserver) nearObserver.disconnect();
       frames.fill(null);
     };

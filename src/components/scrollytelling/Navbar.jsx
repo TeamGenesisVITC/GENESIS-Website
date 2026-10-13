@@ -140,6 +140,23 @@ function MobileMenu({ onNavigate }) {
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
 
+  // Widening past the phone breakpoint (rotation, a resized window) closes the menu; the
+  // toggle is hidden there, and a focused link inside the panel hands focus back to the page.
+  useEffect(() => {
+    if (!open || typeof window.matchMedia !== 'function') return undefined;
+    const query = window.matchMedia('(max-width: 900px)');
+    const onChange = () => {
+      if (query.matches) return;
+      if (panelRef.current && panelRef.current.contains(document.activeElement)) {
+        const main = document.getElementById('main-content');
+        if (main) main.focus({ preventScroll: true });
+      }
+      setOpen(false);
+    };
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return undefined;
     const firstLink = panelRef.current && panelRef.current.querySelector('a');

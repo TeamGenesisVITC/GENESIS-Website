@@ -305,20 +305,23 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {mechanicalMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
-                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
+                        onFocus={() => setHoveredMember(member)}
+                        onBlur={() => setHoveredMember(null)}
+                        onClick={() => setHoveredMember(member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
                     {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
                       <div className="live-quote">
                         <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
@@ -391,20 +394,23 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {electricalMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
-                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
+                        onFocus={() => setHoveredMember(member)}
+                        onBlur={() => setHoveredMember(null)}
+                        onClick={() => setHoveredMember(member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
                     {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
                       <div className="live-quote">
                         <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
@@ -477,20 +483,23 @@ export default function TeamSection() {
 
                   <div className="roster-chips-grid">
                     {softwareMembers.map((member) => (
-                      <div
+                      <button
+                        type="button"
                         key={member.id}
                         className="engineer-chip"
                         onMouseEnter={() => setHoveredMember(member)}
-                        onClick={() => setHoveredMember(member)}
                         onMouseLeave={() => setHoveredMember(null)}
+                        onFocus={() => setHoveredMember(member)}
+                        onBlur={() => setHoveredMember(null)}
+                        onClick={() => setHoveredMember(member)}
                       >
                         <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                         <span className="chip-name font-satoshi">{member.name}</span>
-                      </div>
+                      </button>
                     ))}
                   </div>
 
-                  <div className="roster-quote-callout font-satoshi">
+                  <div className="roster-quote-callout font-satoshi" aria-live="polite">
                     {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
                       <div className="live-quote">
                         <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"
@@ -573,23 +582,26 @@ export default function TeamSection() {
                     </div>
                     <div className="roster-chips-grid">
                       {legacyMembers.filter((m) => m.department === dept).map((member) => (
-                        <div
+                        <button
+                          type="button"
                           key={member.id}
                           className="engineer-chip engineer-chip--legacy"
                           onMouseEnter={() => setHoveredMember(member)}
-                          onClick={() => setHoveredMember(member)}
                           onMouseLeave={() => setHoveredMember(null)}
+                          onFocus={() => setHoveredMember(member)}
+                          onBlur={() => setHoveredMember(null)}
+                          onClick={() => setHoveredMember(member)}
                         >
                           <span className="chip-avatar font-mono">{member.name.charAt(0)}</span>
                           <span className="chip-name font-satoshi">{member.name}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="roster-quote-callout font-satoshi">
+              <div className="roster-quote-callout font-satoshi" aria-live="polite">
                 {hoveredMember && hoveredMember.quote && hoveredMember.quote.trim() ? (
                   <div className="live-quote">
                     <strong className="font-mono">{hoveredMember.name}:</strong> "{hoveredMember.quote.trim()}"

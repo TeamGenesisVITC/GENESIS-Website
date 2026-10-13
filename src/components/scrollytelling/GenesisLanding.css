@@ -2979,7 +2979,8 @@ html.lenis, html.lenis body {
 /* ═══════════════════════════════════════════════════════════
    PHONE MENU (Navbar MobileMenu, <= 900px where the inline links are hidden)
    ═══════════════════════════════════════════════════════════ */
-.nav-menu-toggle {
+.nav-menu-toggle,
+.nav-mobile-menu {
   display: none;
 }
 
@@ -3037,10 +3038,15 @@ html.lenis, html.lenis body {
   }
 
   .nav-mobile-menu {
+    display: block;
     position: fixed;
     top: 64px;
     left: 0;
     right: 0;
+    /* Short landscape phones: the six rows scroll instead of running off the screen. */
+    max-height: calc(100dvh - 64px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 4px 20px calc(14px + env(safe-area-inset-bottom, 0px));
     background: #0A0A10;
     border-bottom: 1px solid rgba(168, 85, 247, 0.28);
@@ -3205,4 +3211,19 @@ html.lenis, html.lenis body {
   .flagship-exit-hint {
     margin-top: 10px;
   }
+}
+
+/* Roster chips are buttons (TeamSection): keep the former <div> chip look. */
+button.engineer-chip {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.engineer-chip:focus-visible {
+  outline: 2px solid #C084FC;
+  outline-offset: 2px;
 }
