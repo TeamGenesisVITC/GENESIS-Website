@@ -14,6 +14,10 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <link rel="canonical" href="https://www.teamgenesisvitc.in/" />
 
+    <!-- "js" on <html> before the first paint: the prerendered landing page shows a static
+      layout of its scroll-driven sections when JavaScript is off (GenesisLanding.css). -->
+    <script>document.documentElement.classList.add('js')</script>
+
     <!--
       Fonts: the @font-face rules live in src/styles/fonts.css (no render-blocking font
       stylesheets). The font files come from these two hosts; preconnect with crossorigin, as

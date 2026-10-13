@@ -5,6 +5,8 @@ import PrefetchLink from '../PrefetchLink';
 import Navbar from './Navbar';
 import ScrollCanvas from './ScrollCanvas';
 import StoryBeat from './StoryBeat';
+import stillsManifest from './beat-stills.json';
+import { scheduleDeferredRender, revealDeferredThrough } from '../../utils/deferredRender';
 import HeroHeadline from './HeroHeadline';
 import HeroPoints from './HeroPoints';
 import ProjectsSection from './ProjectsSection';
@@ -76,6 +78,7 @@ function AnimatedMetric({ targetValue, suffix = '', label }) {
 
 export default function GenesisLanding() {
   const containerRef = useRef(null);
+  const landingRef = useRef(null);
   const targetProgressRef = useRef(0);
   const [activeBeat, setActiveBeat] = useState(0);
   const activeBeatRef = useRef(0);
@@ -167,9 +170,17 @@ export default function GenesisLanding() {
 
   // Smooth jump to DOM sections (instant when the user prefers reduced motion).
   // Focus follows the jump so keyboard and screen-reader users continue from there.
+  // Sections below the first screen start with content-visibility: auto (GenesisLanding.css
+  // [data-deferred-render]); render them for real one per idle moment after load, on every
+  // visit to this page (including client-side navigations back to it).
+  useEffect(() => scheduleDeferredRender(landingRef.current), []);
+
   const scrollToSection = (sectionId) => {
     const el = document.getElementById(sectionId);
     if (!el) return;
+    // A jump measured while earlier sections still use their estimated heights would land
+    // off target once they render: render them first.
+    revealDeferredThrough(el);
     window.scrollTo({
       top: el.getBoundingClientRect().top + window.scrollY - 50,
       behavior: prefersReducedMotion ? 'auto' : 'smooth',
@@ -178,7 +189,7 @@ export default function GenesisLanding() {
   };
 
   return (
-    <div className="genesis-landing">
+    <div className="genesis-landing" ref={landingRef}>
       
       {/* ── 1+2. STUDIO BACKDROP: brushed-silver gradient, soft overhead highlight and
           anodized grain, composed once into a single static fixed layer (.landing-backdrop) ── */}
@@ -430,6 +441,18 @@ export default function GenesisLanding() {
          ══════════════════════════════════════════════════════════ */}
       <div id="flagship-section" tabIndex={-1} className="canvas-section" ref={containerRef} data-deferred-render="flagship">
         <div className="canvas-sticky">
+          {/* Without JavaScript the sequence cannot run: one still of the robot instead (the
+              cards then stack below it, GenesisLanding.css "Without JavaScript"). */}
+          <noscript>
+            <img
+              className="flagship-still"
+              src={`${stillsManifest.basePath}${stillsManifest.stills[0].webp.file}`}
+              alt="Team Genesis KP-17 humanoid robot"
+              width={stillsManifest.width}
+              height={stillsManifest.height}
+              loading="lazy"
+            />
+          </noscript>
 
           {/* Hardware Inspection Scrollytelling Canvas */}
           <ScrollCanvas targetProgressRef={targetProgressRef} reducedMotion={prefersReducedMotion} />
@@ -727,7 +750,9 @@ export default function GenesisLanding() {
           </div>
 
           <div className="footer-bottom-bar font-satoshi">
-            <span className="footer-copyright">
+            {/* The prerender bakes in the build's year; across a new year the browser's differs,
+                which must not make React discard the whole prerendered page. */}
+            <span className="footer-copyright" suppressHydrationWarning>
               © {new Date().getFullYear()} Team Genesis, VIT Chennai. All rights reserved.
             </span>
             <div className="footer-legal-links">

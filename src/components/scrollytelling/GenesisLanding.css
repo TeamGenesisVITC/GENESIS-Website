@@ -3328,3 +3328,49 @@ button.engineer-chip:focus-visible {
 @media (max-width: 768px), (prefers-reduced-motion: reduce) {
   [data-deferred-render="team"] { contain-intrinsic-size: auto 7460px; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   WITHOUT JAVASCRIPT (<html> lacks the "js" class that index.html sets before the first paint)
+   The prerendered landing page is complete without its scripts except for what they drive:
+   the pinned canvas sequence becomes a static column (one still of the robot, then the five
+   story cards in order), and the phone menu button, which needs JavaScript, is hidden.
+   ═══════════════════════════════════════════════════════════ */
+.flagship-still {
+  display: block;
+  width: min(960px, calc(100% - 32px));
+  height: auto;
+  margin: 0 auto 40px;
+  border-radius: 12px;
+}
+
+html:not(.js) .canvas-section {
+  height: auto;
+}
+html:not(.js) .canvas-sticky {
+  position: relative;
+  display: block;
+  height: auto;
+  overflow: visible;
+  contain: none;
+  will-change: auto;
+  padding: 96px 0 72px;
+}
+html:not(.js) .canvas-sticky canvas {
+  display: none !important;
+}
+html:not(.js) .story-beat {
+  position: relative !important;
+  height: auto !important;
+  justify-content: center !important;
+  margin-bottom: 24px;
+}
+html:not(.js) .beat-editorial-container,
+html:not(.js) .beat-editorial-container .beat-item {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  visibility: visible;
+}
+html:not(.js) .nav-menu-toggle {
+  display: none;
+}
