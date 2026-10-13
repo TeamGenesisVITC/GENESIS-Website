@@ -3227,3 +3227,104 @@ button.engineer-chip:focus-visible {
   outline: 2px solid #C084FC;
   outline-offset: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   HERO ENTRANCE (GenesisLanding .hero-intro)
+   The same offsets, durations, delays and easing as the framer-motion initial/animate props
+   they replace. As CSS they run from the first paint of the prerendered page instead of after
+   the JavaScript has downloaded and hydrated it. Each element starts transparent and/or offset
+   and settles into its own styles (the keyframes have no "to").
+   ═══════════════════════════════════════════════════════════ */
+.hero-intro {
+  animation-name: hero-intro;
+  animation-duration: var(--intro-duration, 0.5s);
+  animation-delay: var(--intro-delay, 0s);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+@keyframes hero-intro {
+  from {
+    opacity: var(--intro-opacity, 0);
+    transform: translate(var(--intro-x, 0px), var(--intro-y, 0px));
+  }
+}
+
+.hero-intro--eyebrow {
+  --intro-duration: 0.4s;
+  --intro-y: 8px;
+}
+.hero-intro--headline {
+  --intro-duration: 0.6s;
+  --intro-delay: 0.08s;
+  --intro-y: 20px;
+}
+.hero-intro--points {
+  --intro-duration: 0.5s;
+  --intro-delay: 0.18s;
+  --intro-y: 16px;
+}
+.hero-intro--actions {
+  --intro-duration: 0.45s;
+  --intro-delay: 0.28s;
+  --intro-y: 14px;
+}
+.hero-intro--robot {
+  --intro-duration: 0.9s;
+  --intro-delay: 0.15s;
+  --intro-x: 60px;
+}
+/* The phone robot slides without fading: it is the first screen's largest element. */
+.hero-intro--robot-inline {
+  --intro-duration: 0.8s;
+  --intro-x: 40px;
+  --intro-opacity: 1;
+}
+
+/* Like framer-motion's reducedMotion="user": no movement, the fades still run. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-intro {
+    --intro-x: 0px;
+    --intro-y: 0px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DEFERRED SECTIONS ([data-deferred-render], main.jsx renderDeferredSections)
+   The prerendered page lays out ~20,000px of content before its first paint: ~0.7 s of layout
+   on a mid-range phone. Sections below the first screen start with content-visibility: auto,
+   so only the hero is laid out for the first paint; main.jsx then renders them for real, one
+   per idle moment, so scrolling into a section never has to lay it out. Until then each one
+   reserves its measured height (contain-intrinsic-size; "auto" keeps the real height once it
+   has been rendered). The canvas sequence and the desktop team carousel have fixed heights.
+   ═══════════════════════════════════════════════════════════ */
+[data-deferred-render] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1000px;
+}
+[data-deferred-render="origins"] { contain-intrinsic-size: auto 811px; }
+[data-deferred-render="vision"] { contain-intrinsic-size: auto 1091px; }
+[data-deferred-render="projects"] { contain-intrinsic-size: auto 1373px; }
+[data-deferred-render="invest"] { contain-intrinsic-size: auto 1222px; }
+[data-deferred-render="footer"] { contain-intrinsic-size: auto 412px; }
+
+@media (max-width: 1024px) {
+  [data-deferred-render="origins"] { contain-intrinsic-size: auto 860px; }
+  [data-deferred-render="vision"] { contain-intrinsic-size: auto 1200px; }
+  [data-deferred-render="projects"] { contain-intrinsic-size: auto 2360px; }
+  [data-deferred-render="invest"] { contain-intrinsic-size: auto 1540px; }
+  [data-deferred-render="footer"] { contain-intrinsic-size: auto 610px; }
+}
+
+@media (max-width: 768px) {
+  [data-deferred-render="origins"] { contain-intrinsic-size: auto 1110px; }
+  [data-deferred-render="vision"] { contain-intrinsic-size: auto 1600px; }
+  [data-deferred-render="projects"] { contain-intrinsic-size: auto 2830px; }
+  [data-deferred-render="invest"] { contain-intrinsic-size: auto 1930px; }
+  [data-deferred-render="footer"] { contain-intrinsic-size: auto 1140px; }
+}
+
+/* Stacked team slides (phones, reduced motion) have no fixed height. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  [data-deferred-render="team"] { contain-intrinsic-size: auto 7460px; }
+}

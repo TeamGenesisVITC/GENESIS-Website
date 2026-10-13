@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import { m, useScroll, useReducedMotion } from 'framer-motion';
 // 80x80 palette PNG (3.5 KB, smaller than AVIF/WebP + <picture> overhead at this size);
 // small enough that the bundler inlines it, so the logo costs no extra request.
@@ -113,6 +113,13 @@ function MagneticButton({ children, href, onClick, className = '', reduceMotion 
 const SCROLL_TIMELINE_SUPPORTED =
   typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('animation-timeline: scroll()');
 
+// The prerendered page (and its hydration) always uses the CSS bar; browsers without scroll-driven
+// animations switch to the JavaScript bar right after hydration.
+const subscribeNever = () => () => {};
+function useScrollTimelineSupport() {
+  return useSyncExternalStore(subscribeNever, () => SCROLL_TIMELINE_SUPPORTED, () => true);
+}
+
 function JsProgressBar() {
   const { scrollYProgress } = useScroll();
   return <m.div aria-hidden="true" className="nav-purple-progress-bar" style={{ scaleX: scrollYProgress }} />;
@@ -220,6 +227,7 @@ function MobileMenu({ onNavigate }) {
 export default function Navbar({ onNavigateToSection }) {
   const [scrolled, setScrolled] = useState(false);
   const reduceMotion = useReducedMotion();
+  const scrollTimelineSupported = useScrollTimelineSupport();
 
   useEffect(() => {
     // Only touch React state when the value flips (see GenesisLanding's scroll handler).
@@ -315,7 +323,7 @@ export default function Navbar({ onNavigateToSection }) {
 
       {/* ── HIGH-TECH PURPLE SCROLL PROGRESS BAR (UNDER NAVBAR) ── */}
       <div className="nav-progress-track">
-        {SCROLL_TIMELINE_SUPPORTED ? (
+        {scrollTimelineSupported ? (
           // Scroll-driven CSS animation: runs on the compositor, no JavaScript per frame.
           <div aria-hidden="true" className="nav-purple-progress-bar nav-purple-progress-bar--css" />
         ) : (

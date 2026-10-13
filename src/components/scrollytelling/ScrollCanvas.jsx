@@ -454,7 +454,9 @@ export default function ScrollCanvas({
 
   const currentFrameRef = useRef(0);
   const currentOffsetXRef = useRef(0);
-  const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 });
+  // Filled in by the resize effect before the first draw (no window access while rendering:
+  // the landing page is also rendered at build time).
+  const dimensionsRef = useRef({ w: 0, h: 0, dpr: 1 });
   const fadeCacheRef = useRef({ ctx: null, drawW: 0, drawH: 0, gradients: null });
   const triggerRef = useRef(null);
 

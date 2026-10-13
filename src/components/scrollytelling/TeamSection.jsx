@@ -113,7 +113,7 @@ export default function TeamSection() {
   const legacyDepartments = [...new Set(legacyMembers.map((m) => m.department))];
 
   return (
-    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef}>
+    <div id="team-section" tabIndex={-1} className="team-hscroll-wrapper" ref={sectionRef} data-deferred-render="team">
       <div className="team-hscroll-stage">
 
         {/* ── Horizontal Track (7 Slides × 100vw) ── */}
