@@ -3334,6 +3334,8 @@ button.engineer-chip:focus-visible {
    The prerendered landing page is complete without its scripts except for what they drive:
    the pinned canvas sequence becomes a static column (one still of the robot, then the five
    story cards in order), and the phone menu button, which needs JavaScript, is hidden.
+   Sections are not deferred either: nothing would render them later, and content left
+   unrendered off-screen is missing from the accessibility tree.
    ═══════════════════════════════════════════════════════════ */
 .flagship-still {
   display: block;
@@ -3343,6 +3345,9 @@ button.engineer-chip:focus-visible {
   border-radius: 12px;
 }
 
+html:not(.js) [data-deferred-render] {
+  content-visibility: visible;
+}
 html:not(.js) .canvas-section {
   height: auto;
 }

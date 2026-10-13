@@ -63,13 +63,13 @@ export default function TeamSection() {
     let refresh = null;
     loadScrollTrigger().then(({ gsap, ScrollTrigger }) => {
       if (cancelled) return;
-      // The pin measures this section and the track's width: render it, and everything above
-      // it, before measuring (a deferred section reports an estimated height and no width).
-      revealDeferredThrough(section);
       refresh = () => ScrollTrigger.refresh();
       window.addEventListener(SECTIONS_RENDERED_EVENT, refresh);
       mm = gsap.matchMedia();
       mm.add('(min-width: 769px) and (prefers-reduced-motion: no-preference)', () => {
+        // The pin measures this section and the track's width: render it, and everything above
+        // it, first (a deferred section reports an estimated height and no width).
+        revealDeferredThrough(section);
         const getScrollAmount = () => -(track.scrollWidth - window.innerWidth);
 
         gsap.to(track, {

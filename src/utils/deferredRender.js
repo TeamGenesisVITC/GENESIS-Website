@@ -51,13 +51,15 @@ export function scheduleDeferredRender(root) {
 }
 
 /**
- * Renders every deferred section before `target` (and the one containing it) right away, so
- * its position is final before a jump to it is measured. Costs one synchronous layout, and
- * only until the idle rendering has caught up.
+ * Renders every deferred section before `target`, and the one that is or contains it, right
+ * away, so its position is final before a jump to it is measured; sections after it keep
+ * waiting. Costs one synchronous layout, and only until the idle rendering has caught up.
  */
 export function revealDeferredThrough(target) {
   for (const section of document.querySelectorAll(SELECTOR)) {
+    const after = !section.contains(target)
+      && (target.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (after) break;
     reveal(section);
-    if (section === target || section.contains(target)) break;
   }
 }
